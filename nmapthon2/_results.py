@@ -22,6 +22,8 @@
 
 import datetime
 
+from ._elements import Host
+
 
 class NmapScanResult:
     """ An instance of this class encapsulates the output of a Nmap
@@ -44,7 +46,7 @@ class NmapScanResult:
     __slots__ = ('_scanner', '_arguments', '_start_timestamp', '_start_datetime',
                  '_version', '_end_timestamp', '_end_datetime', '_elapsed', '_summary',
                  '_exit_status', '_hosts_up', '_hosts_down', '_num_hosts', '_scan_info',
-                 '_verbose', '_debug')
+                 '_verbose', '_debug', '_hosts')
 
     def __init__(self, **kwargs):
         self.scanner = kwargs.get('scanner', None)
@@ -65,6 +67,8 @@ class NmapScanResult:
         self.scan_info = kwargs.get('scan_info', None)
         self.verbose = kwargs.get('verbose', None)
         self.debug = kwargs.get('debug', None)
+
+        self._hosts = []
 
     @property
     def scanner(self):
@@ -229,5 +233,17 @@ class NmapScanResult:
             self._debug = int(v)
         else:
             self._debug = None
+
+    def _add_hosts(self, *args):
+        """ Add hosts objects to the current instance.
+
+        :param args: Any number of Hosts instances to add
+        :raises TypeError: If any of the instances is not from the Host class
+        """
+
+        for i in args:
+            if not isinstance(i, Host):
+                raise TypeError('Cannot add non-Host objects to a NmapScanResult')
+            self._hosts.append(i)
 
     

@@ -28,7 +28,9 @@ import pathlib
 
 import xml.etree.ElementTree as ET
 
+from ._elements import Host, Port, Service, OperatingSystem
 from ._results import NmapScanResult
+from .exceptions import _XMLParsingError
 
 class XMLParser:
     """ Used to parse Nmap outputs into Python objects.
@@ -152,5 +154,147 @@ class XMLParser:
 
         scan_result = NmapScanResult(**general_info)
 
-        
+        # Loop through every <host> element, which contains very host scan result.
+        for host in self._xml_tree.findall('.//host'):
+            host_info = {
+                'start_time': host.attrib['starttime'],
+                'end_time': host.attrib['endtime']
+            }
+            status_element = host.find('status')
+            if status_element is None:
+                raise _XMLParsingError('Could not get status from host')
+            host_info['state'] = status_element.attrib['state'] 
+            host_info['reason'] = status_element.attrib['reason'] 
+            host_info['reason_ttl'] = status_element.attrib['reason_ttl'] 
+            address_items = host.findall('.//address')
+            if not address_items:
+                raise _XMLParsingError('Could not be able to parse host address')
             
+            # Parse IPv4 and IPv6 if exist
+            for addr in address_items:
+                if addr.attrib['addrtype'] == 'ipv4':
+                    host_info['ipv4'] = addr.attrib['addr']
+                elif addr.attrib['addrtype'] == 'ipv6':
+                    host_info['ipv6'] = addr.attrib['addr']
+            
+            if 'ipv4' not in host_info and 'ipv6' not in host_info:
+                raise _XMLParsingError('Cannot parse host that no IPv4 nor IPv6 address')
+
+            # Parse hostnames
+            hostnames_element = host.find('hostnames')
+            hostnames_info = {}
+            if hostnames_element is not None:
+                for hostname_element in hostnames_element:
+                    host_info[hostname_element.attrib['name']] = hostname_element.attrib['type']
+
+            # Get OS fingerprint
+            os_fingerprint_element = host.find('.//osfingerprint')
+            if os_fingerprint_element is not None:
+                host_info['fingerprint'] = os_fingerprint_element.attrib['fingerprint']
+
+            # Instatiate the host
+            host_instance = Host(**host_info)
+
+            scan_info = host.find('ports')
+            for port in scan_info.findall('port'):
+                port_info = {
+                    'protocol': port.attrib['protocol'],
+                    'number': port.attrib['portid']
+                }
+                
+                state_element = port.find('state')
+                if state_element is None:
+                    raise _XMLParsingError('Cannot find state element from port')
+                port_info['state'] = state_element.attrib['state']
+                port_info['reason'] = state_element.attrib['reason']
+                port_info['reason_ttl'] = state_element.attrib['reason_ttl']
+
+                # Create the port object
+                port_instance = Port(**port_info)
+
+                # Parse service information
+                service_info = {'port': port_info['number']}
+                service_element = port.find('service')
+                if service_element is not None:
+                    service_info['name'] = service_element.attrib['name']
+                    try:
+                        service_info['product'] = service_element.attrib['product']
+                    except KeyError:
+                        service_info['product'] = None
+                    try:
+                        service_info['version'] = service_element.attrib['version']
+                    except KeyError:
+                        service_info['version'] = None
+                    try:
+                        service_info['extrainfo'] = service_element.attrib['extrainfo']
+                    except KeyError:
+                        service_info['extrainfo'] = None
+                    try:
+                        service_info['tunnel'] = service_element.attrib['tunnel']
+                    except KeyError:
+                        service_info['tunnel'] = None
+                    try:
+                        service_info['method'] = service_element.attrib['method']
+                    except KeyError:
+                        service_info['method'] = None
+                    try:
+                        service_info['conf'] = service_element.attrib['conf']
+                    except KeyError:
+                        service_info['conf'] = None
+                    
+                    service_info['cpes'] = []
+
+                    # Get CPEs
+                    for cpe_item in service_element.findall('cpe'):
+                        service_info['cpes'].append(cpe_item.text)
+
+                    # Bind the service instance with the port instance
+                    service_instance = Service(**service_info)
+
+                    for script in service_element.findall('script'):
+                        service_instance._add_script(script.attrib['name'], script.attrib['output'])
+
+                    port_instance._add_service(service_instance)
+
+                # Bind the port instance to the current host
+                host_instance._add_port(port_instance)
+
+            os_root_element = host.find('os')
+
+            # Add os information
+            if os_root_element is not None:
+
+                for os_element in os_root_element.findall('osmatch'):
+                    os_info = {}
+                    os_info['name'] = os_element.attrib['name']
+                    os_info['accuracy'] = os_element.attrib['accuracy']
+                    os_match_element = os_element.find('osclass')
+                    if os_match_element is not None:
+                        try:
+                            os_info['type'] = os_match_element.attrib['type']
+                        except KeyError:
+                            os_info['type'] = None
+                        try:
+                            os_info['vendor'] = os_match_element.attrib['vendor']
+                        except KeyError:
+                            os_info['vendor'] = None
+                        try:
+                            os_info['family'] = os_match_element.attrib['family']
+                        except KeyError:
+                            os_info['family'] = None
+                        try:
+                            os_info['generation'] = os_match_element.attrib['generation']
+                        except KeyError:
+                            os_info['generation'] = None
+                        
+                        os_info['cpe'] = None
+
+                        cpe_element = os_match_element.find('cpe')
+                        if cpe_element is not None:
+                            os_info['cpe'] = cpe_element.text
+                    
+                    os_instance = OperatingSystem(**os_info)
+                    host_instance._add_os(os_instance) 
+            
+            scan_result._add_hosts(host_instance)
+        
