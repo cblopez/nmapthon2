@@ -36,7 +36,7 @@ class Host:
     """
 
     __slots__ = ('_state', '_reason', '_reason_ttl', '_start_time', '_end_time', '_ipv4', '_ipv6',
-                 '_hostnames', '_ports', '_oses', '_fingerprint', '_trace')
+                 '_hostnames', '_ports', '_oses', '_fingerprint', '_trace', '_scripts')
 
     def __init__(self, **kwargs):
         self.state = kwargs.get('state', None)
@@ -51,6 +51,7 @@ class Host:
         self._ports = kwargs.get('ports', [])
         self._oses = kwargs.get('oses', [])
         self._trace = kwargs.get('trace', [])
+        self._scripts = kwargs.get('scripts', {})
 
     @property
     def state(self):
@@ -119,7 +120,7 @@ class Host:
 
     @ipv4.setter
     def ipv4(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Host.ipv4 must be None or str'
 
         self._ipv4 = v
     
@@ -129,7 +130,7 @@ class Host:
 
     @ipv6.setter
     def ipv6(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Host.ipv6 must be None or str'
 
         self._ipv6 = v
 
@@ -139,7 +140,7 @@ class Host:
     
     @fingerprint.setter
     def fingerprint(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Host.fingerprint must be None or str'
 
         self._fingerprint = v
 
@@ -167,17 +168,25 @@ class Host:
             
         self._oses.append(os)
 
-    def _add_hop(self, hop_instance):
-        """ Add a Hop instance to the current host trace information
+    def _add_hops(self, *args):
+        """ Add an arbitrary number of Hop instances to the current host trace information
 
-        :param hop_instance: Instance to be added
         :raises TypeError if the paramer is not a Hop object
         """
 
-        if not isinstance(hop_instance, Hop):
-            raise TypeError('Cannot bind a non-Hop object to a host`s trace')
-        
-        self._trace.append(hop_instance)
+        for hop_instance in args:
+            if not isinstance(hop_instance, Hop):
+                raise TypeError('Cannot bind a non-Hop object to a host`s trace')
+            
+            self._trace.append(hop_instance)
+
+    def _add_script(self, script_name, script_output):
+        """ Add a script name and output to the host scripts
+
+        :param script_name: Name of the NSE script
+        :param script_output: Output from the script execution
+        """
+        self._scripts[script_name] = script_output
 
     def hostnames(include_type: bool = False) -> list:
         """ Return all the host related hostnames.
@@ -219,7 +228,7 @@ class Port:
 
     @protocol.setter
     def protocol(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Port.protocol must be None or str'
 
     @property
     def number(self):
@@ -227,7 +236,7 @@ class Port:
     
     @number.setter
     def number(self, v):
-        assert v is None or isinstance(v, (str, int))
+        assert v is None or isinstance(v, (str, int)) ,'Port.number must be None, str or int'
 
         self._number = int(v)
 
@@ -237,7 +246,7 @@ class Port:
 
     @state.setter
     def state(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Port.state must be None or str'
 
         self._state = v
 
@@ -247,7 +256,7 @@ class Port:
 
     @reason.setter
     def reason(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Port.reason must be None or str'
 
         self._reason = v
 
@@ -257,7 +266,7 @@ class Port:
 
     @reason_ttl.setter
     def reason_ttl(self, v):
-        assert v is None or isinstance(v, (str, int))
+        assert v is None or isinstance(v, (str, int)), 'Port.reason_ttl must be None, str or int'
 
         self._reason_ttl = int(v)
 
@@ -306,7 +315,7 @@ class Service:
 
     @name.setter
     def name(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.name must be None or str'
 
         self._name = v
 
@@ -316,7 +325,7 @@ class Service:
 
     @product.setter
     def product(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.product must be None or str'
 
         self._product = v
 
@@ -326,7 +335,7 @@ class Service:
 
     @version.setter
     def version(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.version must be None or str'
 
         self._version = v
     
@@ -336,7 +345,7 @@ class Service:
 
     @extrainfo.setter
     def extrainfo(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.extrainfo must be None or str'
 
         self._extrainfo = v
 
@@ -346,7 +355,7 @@ class Service:
 
     @tunnel.setter
     def tunnel(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.tunnel must be None or str'
 
         self._tunnel = v
     
@@ -356,7 +365,7 @@ class Service:
 
     @method.setter
     def method(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.method must be None or str'
 
         self._method = v
     
@@ -366,7 +375,7 @@ class Service:
 
     @conf.setter
     def conf(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Service.conf must be None or str'
 
         self._conf = float(v)
 
@@ -376,7 +385,7 @@ class Service:
 
     @cpes.setter
     def cpes(self, v):
-        assert v is None or isinstance(v, list)
+        assert v is None or isinstance(v, list), 'Service.cpes must be None or list'
 
         self._cpes = v
 
@@ -386,7 +395,7 @@ class Service:
 
     @port.setter
     def port(self, v):
-        assert v is None or isinstance(v, (str, int))
+        assert v is None or isinstance(v, (str, int)), 'Service.port must be None, str or int'
 
         self._port = int(v)
 
@@ -403,24 +412,97 @@ class Service:
         self._scripts[script_name] = script_output
 
 
+class OperatingSystemMatch:
+    """ Represents a single match from an operating system.
+
+    It contains information from the type, vendor, family, generation and CPE. An operating
+    system match is itself part of an OperatingSystem. When Nmap identifies the host's OS, it 
+    outputs its generic information (name and accuracy), but the findings that made Nmap decide
+    the host's OS can are 1-N relation, so this class represents each of those N findings.
+    """
+
+    __slots__ = ('_type', '_vendor', '_family', '_generation', '_cpe')
+
+    def __init__(self, **kwargs):
+        self.type = kwargs.get('type', None)
+        self.vendor = kwargs.get('vendor', None)
+        self.family = kwargs.get('family', None)
+        self.cpe = kwargs.get('cpe', None)
+
+    @property
+    def type(self):
+        return self._type
+    
+    @type.setter
+    def type(self, v):
+
+        assert v is None or isinstance(v, str), 'OperatingSystemMatch.type must be an str or None'
+
+        self._type = v
+    
+    @property
+    def vendor(self):
+        return self._vendor
+    
+    @vendor.setter
+    def vendor(self, v):
+
+        assert v is None or isinstance(v, str), 'OperatingSystemMatch.vendor must be an str or None'
+
+        self._vendor = v
+    
+    @property
+    def family(self):
+        return self._family
+    
+    @family.setter
+    def family(self, v):
+
+        assert v is None or isinstance(v, str), 'OperatingSystemMatch.family must be an str or None'
+
+        self._family = v
+    
+    @property
+    def generation(self):
+        return self._generation
+    
+    @generation.setter
+    def generation(self, v):
+
+        assert v is None or isinstance(v, str), 'OperatingSystemMatch.generation must be an str or None'
+
+        self._generation = v
+    
+    @property
+    def cpe(self):
+        return self._cpe
+
+    @cpe.setter
+    def cpe(self, v):
+
+        assert v is None or isinstance(v, str), 'OperatingSystemMatch.cpe must be an str or None'
+
+        self._cpe = v
+
+
 class OperatingSystem:
-    """ Represents a host's operating system
+    """ Represents a host's operating system scan
 
     An operating system contains information from an OS match, which includes the OS name, the
     accuracy and line. It also saves information from the family and generation, in case they exist,
     plus any CPE matched with it.
     """
 
-    __slots__ = ('_name', '_accuracy', '_type', '_vendor', '_family', '_generation', '_cpe')
+    __slots__ = ('_name', '_accuracy', '_matches')
 
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.accuracy = kwargs.get('accuracy', None)
-        self.os_type = kwargs.get('type', None)
-        self.vendor = kwargs.get('vendor', None)
-        self.family = kwargs.get('family', None)
-        self.generation = kwargs.get('generation', None)
-        self.cpe = kwargs.get('cpe', None)
+        self.matches = []
+
+        # Add all matches objects
+        for match_info in kwargs.get('matches', []):
+            self.matches.append(OperatingSystemMatch(**match_info))
 
     @property
     def name(self, v):
@@ -428,7 +510,7 @@ class OperatingSystem:
 
     @name.setter
     def name(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'OperatingSystem.name must be None or str'
 
         self._name = v
 
@@ -438,59 +520,19 @@ class OperatingSystem:
 
     @accuracy.setter
     def accuracy(self, v):
-        assert v is None or isinstance(v, str)
+        assert v is None or isinstance(v, str), 'OperatingSystem.accuracy must be None or str'
 
         self._accuracy = float(v)
     
     @property
-    def os_type(self, v):
-        return self._type
-
-    @os_type.setter
-    def os_type(self, v):
-        assert v is None or isinstance(v, str)
-
-        self._type = v
+    def matches(self):
+        return self._matches
     
-    @property
-    def vendor(self, v):
-        return self._vendor
+    @matches.setter
+    def matches(self, v):
+        assert v is None or isinstance(v, list), 'OperatingSystem.name must be None or list'
 
-    @vendor.setter
-    def vendor(self, v):
-        assert v is None or isinstance(v, str)
-
-        self._vendor = v
-    
-    @property
-    def family(self, v):
-        return self._family
-
-    @family.setter
-    def family(self, v):
-        assert v is None or isinstance(v, str)
-
-        self._family = v
-
-    @property
-    def generation(self, v):
-        return self._generation
-
-    @generation.setter
-    def generation(self, v):
-        assert v is None or isinstance(v, str)
-
-        self._generation = v
-
-    @property
-    def cpe(self, v):
-        return self._cpe
-
-    @cpe.setter
-    def cpe(self, v):
-        assert v is None or isinstance(v, str)
-
-        self._cpe = v
+        self._matches = v
 
 
 class Hop:
@@ -513,7 +555,7 @@ class Hop:
     
     @host.setter
     def host(self, v):
-        assert v is None and isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Hop.host must None or str'
 
         self._host = v
     
@@ -523,7 +565,7 @@ class Hop:
     
     @ip.setter
     def ip(self, v):
-        assert v is None and isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Hop.ip must None or str'
 
         self._ip = v
     
@@ -533,7 +575,7 @@ class Hop:
     
     @rtt.setter
     def rtt(self, v):
-        assert v is None and isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Hop.rtt must None or str'
 
         self._rtt = v
     
@@ -543,6 +585,6 @@ class Hop:
     
     @ttl.setter
     def ttl(self, v):
-        assert v is None and isinstance(v, str)
+        assert v is None or isinstance(v, str), 'Hop.ttl must None or str'
 
         self._ttl = v

@@ -28,8 +28,8 @@ import pathlib
 
 import xml.etree.ElementTree as ET
 
-from ._elements import Host, Port, Service, OperatingSystem
-from ._results import NmapScanResult
+from .elements import Host, Port, Service, OperatingSystem, Hop
+from .results import NmapScanResult
 from .exceptions import _XMLParsingError
 
 class XMLParser:
@@ -195,6 +195,7 @@ class XMLParser:
             # Instatiate the host
             host_instance = Host(**host_info)
 
+            # Parse all ports
             scan_info = host.find('ports')
             for port in scan_info.findall('port'):
                 port_info = {
@@ -261,40 +262,76 @@ class XMLParser:
 
             os_root_element = host.find('os')
 
-            # Add os information
+            # Add OS information
             if os_root_element is not None:
 
                 for os_element in os_root_element.findall('osmatch'):
                     os_info = {}
                     os_info['name'] = os_element.attrib['name']
                     os_info['accuracy'] = os_element.attrib['accuracy']
-                    os_match_element = os_element.find('osclass')
-                    if os_match_element is not None:
+                    matches = []
+                    for os_match_element in os_element.findall('osclass'):
+                        match_info = {}
                         try:
-                            os_info['type'] = os_match_element.attrib['type']
+                            match_info['type'] = os_match_element.attrib['type']
                         except KeyError:
-                            os_info['type'] = None
+                            match_info['type'] = None
                         try:
-                            os_info['vendor'] = os_match_element.attrib['vendor']
+                            match_info['vendor'] = os_match_element.attrib['vendor']
                         except KeyError:
-                            os_info['vendor'] = None
+                            match_info['vendor'] = None
                         try:
-                            os_info['family'] = os_match_element.attrib['family']
+                            match_info['family'] = os_match_element.attrib['family']
                         except KeyError:
-                            os_info['family'] = None
+                            match_info['family'] = None
                         try:
-                            os_info['generation'] = os_match_element.attrib['generation']
+                            match_info['generation'] = os_match_element.attrib['generation']
                         except KeyError:
-                            os_info['generation'] = None
+                            match_info['generation'] = None
                         
-                        os_info['cpe'] = None
+                        match_info['cpe'] = None
 
                         cpe_element = os_match_element.find('cpe')
                         if cpe_element is not None:
-                            os_info['cpe'] = cpe_element.text
+                            match_info['cpe'] = cpe_element.text
+                        
+                        matches.append(match_info)
                     
+                    os_info['matches'] = matches
                     os_instance = OperatingSystem(**os_info)
                     host_instance._add_os(os_instance) 
             
+            # Parse traceroute
+            trace_element = host.find('trace')
+            hops = []
+            for hop in trace_element.findall('hop'):
+                hop_info = {}
+                try:
+                    hop_info['host'] = hop.attrib['host']
+                except KeyError:
+                    hop_info['host'] = None
+                try:
+                    hop_info['ttl'] = hop.attrib['ttl']
+                except KeyError:
+                    hop_info['ttl'] = None
+                try:
+                    hop_info['rtt'] = hop.attrib['rtt']
+                except KeyError:
+                    hop_info['rtt'] = None
+                try:
+                    hop_info['ip'] = hop.attrib['ipaddr']
+                except KeyError:
+                    hop_info['ip'] = None
+
+                hops.append(Hop(**hop_info))
+            
+            host_instance._add_hops(*hops)
+
+            # Parse host scripts
+            hostscript_element = host.find('hostscript')
+            if hostscript_element:
+                for script_element in hostscript_element.findall('script'):
+                    host_instance._add_script(script_element.attrib['id'], script_element.attrib['output'])
+
             scan_result._add_hosts(host_instance)
         

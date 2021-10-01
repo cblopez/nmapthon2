@@ -22,7 +22,7 @@
 
 import datetime
 
-from ._elements import Host
+from .elements import Host
 
 
 class NmapScanResult:
@@ -101,8 +101,7 @@ class NmapScanResult:
         if v is not None:
             self._start_timestamp = int(v)
         else:
-            self._start_timestamp = v
-                
+            self._start_timestamp = v   
     
     @property
     def start_datetime(self):
@@ -132,7 +131,7 @@ class NmapScanResult:
     
     @end_timestamp.setter
     def end_timestamp(self, v):
-        assert v is None or isinstance(v, str) or isinstance(v, int), 'NmapScanResult.end_timestamp must be None, str or int'
+        assert v is None or isinstance(v, (str, int)), 'NmapScanResult.end_timestamp must be None, str or int'
 
         if v is not None:
             self._end_timestamp = int(v)
@@ -245,5 +244,3 @@ class NmapScanResult:
             if not isinstance(i, Host):
                 raise TypeError('Cannot add non-Host objects to a NmapScanResult')
             self._hosts.append(i)
-
-    
