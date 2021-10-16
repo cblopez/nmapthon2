@@ -36,7 +36,7 @@ _OCTECT_RANGE_REGEX = '(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))'
 _PARTIAL_IP_RANGE_REGEX = re.compile('{}(-{})?\.{}(-{})?\.{}(-{})?\.{}(-{})?'.format(*[_OCTECT_RANGE_REGEX for _ in range(8)]))
 
 
-def valid_port(port: (int, str)) -> bool:
+def valid_port(port) -> bool:
     """Checks if a given value might be a port. 
     Must be between 1 and 65535, both included.
 
@@ -95,11 +95,11 @@ def ports_to_list(ports: str):
             # For every port in the range calculated
             for single_port in range(first_port_range, last_port_range):
                 # If valid port, add to list
-                if is_valid_port(single_port):
+                if valid_port(single_port):
                     port_list.append(single_port)
                 # If invalid, raise Exception
                 else:
-                    raise InvalidPortError('{} is not a correct port'.format(single_port))
+                    raise InvalidPortError('{} is not a valid port'.format(single_port))
 
         # If no range indicators, guess individual port
         else:
@@ -112,11 +112,11 @@ def ports_to_list(ports: str):
                 except ValueError:
                     raise InvalidPortError('Invalid port: {}'.format(split_ports)) from None
                 # If is a valid port, append it to list
-                if is_valid_port(integer_parsed_port):
+                if valid_port(integer_parsed_port):
                     port_list.append(integer_parsed_port)
                 # If invalid, raise Error
                 else:
-                    raise InvalidPortError('{} is not a correct port.'.format(integer_parsed_port))
+                    raise InvalidPortError('{} is not a valid port.'.format(integer_parsed_port))
     
     return sorted(list(set(port_list)))
 
@@ -132,7 +132,7 @@ def extend_port_list(port_list: Iterable) -> list:
     port_list = list(map(str, port_list))
 
     new_port_list = []
-    for i in list(map(parse_ports_from_str, port_list)):
+    for i in list(map(ports_to_list, port_list)):
         new_port_list.extend(i)
     
     return list(set(new_port_list))
@@ -147,10 +147,10 @@ def ports_to_str(port_list: Iterable) -> str:
     """
 
     # Get unique list of single ports
-    new_port_list = single_port_list(port_list)
+    new_port_list = extend_port_list(port_list)
 
     # If not all ports are valid ports, raise NmapScanError
-    if not all(is_valid_port(p) for p in new_port_list):
+    if not all(valid_port(p) for p in new_port_list):
         raise InvalidPortError('Ports must be between 0 and 65536') from None
 
     # Sort ports in ascending order
@@ -316,7 +316,7 @@ def dispatch_network(network: str) -> list:
         raise MalformedIpAddressError('Out of range CIDR: {}'.format(cidr))
 
     # If invalid IP address, raise Exception
-    if not is_ip_address(ip_address):
+    if not valid_ip(ip_address):
         raise MalformedIpAddressError('Invalid network IP: {}.'.format(ip_address))
 
     # Combination from struct and socket for binary formatting and bit level operations.
@@ -364,16 +364,16 @@ def targets_to_list(targets: str) -> list:
             # Get starting IP address from range
             starting_ip = ip_range_list[0]
             # If not a valid IP address, raise Error
-            if not is_ip_address(starting_ip):
+            if not valid_ip(starting_ip):
                 raise MalformedIpAddressError('Invalid starting IP range: {}'.format(starting_ip))
             # Get Ending IP address from range
             ending_ip = ip_range_list[1]
             # If not valid IP address, raise Error
-            if not is_ip_address(ending_ip):
+            if not valid_ip(ending_ip):
                 raise MalformedIpAddressError('Invalid ending IP range: {}'.format(ending_ip))
             # For every IP in range, add to list if valid IP. If not, raise Exception.
             for single_target_in_range in ip_range(starting_ip, ending_ip):
-                if is_ip_address(single_target_in_range):
+                if valid_ip(single_target_in_range):
                     target_list.append(single_target_in_range)
                 else:
                     raise MalformedIpAddressError('Invalid IP Address: {}'.format(single_target_in_range))

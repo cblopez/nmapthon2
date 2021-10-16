@@ -188,7 +188,7 @@ class Host:
         """
         self._scripts[script_name] = script_output
 
-    def hostnames(include_type: bool = False) -> list:
+    def hostnames(self, include_type: bool = False) -> list:
         """ Return all the host related hostnames.
         
         if include_type is set to True, the method will return a list of tuples where
@@ -505,7 +505,7 @@ class OperatingSystem:
             self.matches.append(OperatingSystemMatch(**match_info))
 
     @property
-    def name(self, v):
+    def name(self):
         return self._name
 
     @name.setter
@@ -515,7 +515,7 @@ class OperatingSystem:
         self._name = v
 
     @property
-    def accuracy(self, v):
+    def accuracy(self):
         return self._accuracy
 
     @accuracy.setter

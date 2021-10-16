@@ -24,20 +24,27 @@
 # This module contains the XML parser used to transform 
 # pure Nmap XML output into Python objects.
 
+from re import sub
 import shlex
 import tempfile
 import subprocess
-
-import utils
+import random
+import string
+import os
 
 from collections.abc import Iterable
 
 from .parser import XMLParser
-from .exceptions import NmapScanError
-from . import utils
+from .exceptions import InvalidArgumentError, NmapScanError
+from .ports import _PortAbstraction
 
 
 OUTPUT_FORMATS = ('all', 'xml', 'normal', 'grep')
+OUTPUT_RELATION = {
+    'xml': 'X',
+    'normal': 'N',
+    'grep': 'G'
+}
 
 
 class NmapScanner:
@@ -84,11 +91,79 @@ class NmapScanner:
 
         if '-oX' in split_arguments or '-oN' in split_arguments or \
             '-oA' in split_arguments or '-oG' in split_arguments or '-oS' in split_arguments:
-            raise NmapScanError('Cannot especify an output argument.')
+            raise NmapScanError('Cannot especify an output argument. Use the "output" kwarg instead.')
 
-        return split_arguments
+        return ' '.join(split_arguments)
     
-    def scan(self, targets, ports=None, arguments=None, output=None):
+    @staticmethod
+    def _parse_output_flag(output):
+        """ Parses the output wkarg from the scan() method.
+        
+        :returns: Iterable with output options correctly parsed.
+        """
+
+        # If str
+        if isinstance(output, str):
+            if output == 'kiddie':
+                raise InvalidArgumentError('You should not be using this library, young padawan.')
+
+            if output not in OUTPUT_FORMATS:
+                raise InvalidArgumentError('Scan output must be of a valid type: {}'.format(', '.join(OUTPUT_FORMATS)))
+                
+            # Set the output to all other options if "all" is specified
+            if output == 'all':
+                return OUTPUT_FORMATS[1:]
+            else:
+                return (output,)
+
+        # If iterable, validate them and change the variable to each type if "all" is specified
+        elif isinstance(output, Iterable):
+            if 'kiddie' in output:
+                raise InvalidArgumentError('You should not be using this library, young padawan.')
+
+            if 'all' in output:
+                return OUTPUT_FORMATS[1:]
+
+            else:
+                for i in output:
+                    if i not in OUTPUT_FORMATS:
+                        raise InvalidArgumentError('Invalid output value: {}'.format(i))
+            
+            return output
+
+        # Raise error in any other case
+        else:
+            raise TypeError('output parameter must be a string or an iterable with valid format types')
+
+    @staticmethod
+    def _parse_ports_flag(ports):
+        """ Parses the ports flag from the scan() method
+        
+        :returns: Parsed string
+        """
+
+        if isinstance(ports, str) or isinstance(ports, Iterable):
+            return _PortAbstraction()._malleable(ports).to_nmap_syntax()
+        elif isinstance(ports, _PortAbstraction):
+            return ports.to_nmap_syntax()
+        else:
+            raise InvalidArgumentError('Invalid type for ports. Expecting str, Iterable or specific function calling, but got: {}'.format(type(ports)))
+
+    @staticmethod
+    def _parse_targets(targets):
+        """ Parses the targets from the scan() method
+        
+        :returns: Parsed targets
+        """
+
+        if isinstance(targets, str):
+            return targets
+        elif isinstance(targets, Iterable):
+            return ' '.join(targets)
+        else:
+            raise InvalidArgumentError('Invalid targets type, expected str or Iterable, but got {}'.format(type(targets)))
+
+    def _inner_scan(self, targets, ports=None, arguments=None, output=None, engine=None, preprocessor=None):
         """ Execute an Nmap scan based on on a series of targets, and optional ports and
         arguments. For multi-output format storage the output argument can be set with 
         the needed extersions or output parameters.
@@ -97,15 +172,68 @@ class NmapScanner:
         :param ports: Ports in str or list format
         :param arguments: Arguments to execute within the scan.
         :param output: Tuple or list of output formats.
+        :param engine: NSEEngine object for custom script execution
+        :param preprocessor: NSEPostProcessor object ofr custom NSE script parsing
         """
 
-        # Validate parameters
+        # Validate, parse parameters and add them to the command
+        
+        # Target parsing
+        targets = self._parse_targets(targets)
+
+        # Add the commands
+        nmap_command = 'nmap '
+
+        # Ports
+        if ports:
+            ports = self._parse_ports_flag(ports)
+            if '--top-ports' in ports:
+                nmap_command += '{} '.format(ports)
+            else:
+                nmap_command += '-p{} '.format(ports)
+        
+        # Arguments
+        if arguments:
+            arguments = self._parse_command_line_arguments(arguments)
+            nmap_command += '{} '.format(arguments)
+        
+        # Depending on the output argument, should add '-oX -' or start handling output through temp files.
         if output:
-            if not isinstance(output, Iterable):
-                raise TypeError('output parameter must be an iterable with valid format types')
+            output = self._parse_output_flag(output)
+            random_nmap_base_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
+            nmap_command += '-oA {} '.format(os.path.join(self._temp_folder, random_nmap_base_filename))
+        else:
+            nmap_command += '-oX - '
         
-        for i in output:
-            if i not in OUTPUT_FORMATS:
-                raise TypeError('Invalid output type: {}. Valid types are {}'.format(i, ','.join("'{}'".format(x) for x in OUTPUT_FORMATS)))
+        nmap_command += targets
+
+        nmap_process = subprocess.Popen(nmap_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        exec_output, exec_error = nmap_process.communicate()
+
+        # Parse output if any
+        if len(exec_output):
+            
+            # If no output was set, parse directly from output
+            if not output:
+                result = self._xml_parser.parse_plain(exec_output)
+
+            # If output was set, parse it from XML output file.
+            else:
+                result = self._xml_parser.parse_file(os.path.join(self._temp_folder, '{}.xml'.format(random_nmap_base_filename)))
         
-        
+        return result, exec_error
+    
+    def scan(self, targets, ports=None, arguments=None, output=None, engine=None, preprocessor=None):
+        """ Execute an Nmap scan based on on a series of targets, and optional ports and
+        arguments. For multi-output format storage the output argument can be set with 
+        the needed extersions or output parameters.
+
+        :param targets: List of targets in an Iterable or str.
+        :param ports: Ports in str or list format
+        :param arguments: Arguments to execute within the scan.
+        :param output: Tuple or list of output formats.
+        :param engine: NSEEngine object for custom script execution
+        :param preprocessor: NSEPostProcessor object ofr custom NSE script parsing
+        """
+
+        return self._inner_scan(targets, ports=ports, arguments=arguments, output=output)

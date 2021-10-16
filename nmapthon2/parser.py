@@ -73,8 +73,8 @@ class XMLParser:
                 return False
             else:
                 raise
-
-        return True
+        else:
+            return True
 
     def parse_plain(self, plain_text: str):
         """ Parse a plain string that contains the XML.
@@ -197,68 +197,69 @@ class XMLParser:
 
             # Parse all ports
             scan_info = host.find('ports')
-            for port in scan_info.findall('port'):
-                port_info = {
-                    'protocol': port.attrib['protocol'],
-                    'number': port.attrib['portid']
-                }
-                
-                state_element = port.find('state')
-                if state_element is None:
-                    raise _XMLParsingError('Cannot find state element from port')
-                port_info['state'] = state_element.attrib['state']
-                port_info['reason'] = state_element.attrib['reason']
-                port_info['reason_ttl'] = state_element.attrib['reason_ttl']
-
-                # Create the port object
-                port_instance = Port(**port_info)
-
-                # Parse service information
-                service_info = {'port': port_info['number']}
-                service_element = port.find('service')
-                if service_element is not None:
-                    service_info['name'] = service_element.attrib['name']
-                    try:
-                        service_info['product'] = service_element.attrib['product']
-                    except KeyError:
-                        service_info['product'] = None
-                    try:
-                        service_info['version'] = service_element.attrib['version']
-                    except KeyError:
-                        service_info['version'] = None
-                    try:
-                        service_info['extrainfo'] = service_element.attrib['extrainfo']
-                    except KeyError:
-                        service_info['extrainfo'] = None
-                    try:
-                        service_info['tunnel'] = service_element.attrib['tunnel']
-                    except KeyError:
-                        service_info['tunnel'] = None
-                    try:
-                        service_info['method'] = service_element.attrib['method']
-                    except KeyError:
-                        service_info['method'] = None
-                    try:
-                        service_info['conf'] = service_element.attrib['conf']
-                    except KeyError:
-                        service_info['conf'] = None
+            if scan_info is not None:
+                for port in scan_info.findall('port'):
+                    port_info = {
+                        'protocol': port.attrib['protocol'],
+                        'number': port.attrib['portid']
+                    }
                     
-                    service_info['cpes'] = []
+                    state_element = port.find('state')
+                    if state_element is None:
+                        raise _XMLParsingError('Cannot find state element from port')
+                    port_info['state'] = state_element.attrib['state']
+                    port_info['reason'] = state_element.attrib['reason']
+                    port_info['reason_ttl'] = state_element.attrib['reason_ttl']
 
-                    # Get CPEs
-                    for cpe_item in service_element.findall('cpe'):
-                        service_info['cpes'].append(cpe_item.text)
+                    # Create the port object
+                    port_instance = Port(**port_info)
 
-                    # Bind the service instance with the port instance
-                    service_instance = Service(**service_info)
+                    # Parse service information
+                    service_info = {'port': port_info['number']}
+                    service_element = port.find('service')
+                    if service_element is not None:
+                        service_info['name'] = service_element.attrib['name']
+                        try:
+                            service_info['product'] = service_element.attrib['product']
+                        except KeyError:
+                            service_info['product'] = None
+                        try:
+                            service_info['version'] = service_element.attrib['version']
+                        except KeyError:
+                            service_info['version'] = None
+                        try:
+                            service_info['extrainfo'] = service_element.attrib['extrainfo']
+                        except KeyError:
+                            service_info['extrainfo'] = None
+                        try:
+                            service_info['tunnel'] = service_element.attrib['tunnel']
+                        except KeyError:
+                            service_info['tunnel'] = None
+                        try:
+                            service_info['method'] = service_element.attrib['method']
+                        except KeyError:
+                            service_info['method'] = None
+                        try:
+                            service_info['conf'] = service_element.attrib['conf']
+                        except KeyError:
+                            service_info['conf'] = None
+                        
+                        service_info['cpes'] = []
 
-                    for script in service_element.findall('script'):
-                        service_instance._add_script(script.attrib['name'], script.attrib['output'])
+                        # Get CPEs
+                        for cpe_item in service_element.findall('cpe'):
+                            service_info['cpes'].append(cpe_item.text)
 
-                    port_instance._add_service(service_instance)
+                        # Bind the service instance with the port instance
+                        service_instance = Service(**service_info)
 
-                # Bind the port instance to the current host
-                host_instance._add_port(port_instance)
+                        for script in service_element.findall('script'):
+                            service_instance._add_script(script.attrib['name'], script.attrib['output'])
+
+                        port_instance._add_service(service_instance)
+
+                    # Bind the port instance to the current host
+                    host_instance._add_port(port_instance)
 
             os_root_element = host.find('os')
 
@@ -303,29 +304,30 @@ class XMLParser:
             
             # Parse traceroute
             trace_element = host.find('trace')
-            hops = []
-            for hop in trace_element.findall('hop'):
-                hop_info = {}
-                try:
-                    hop_info['host'] = hop.attrib['host']
-                except KeyError:
-                    hop_info['host'] = None
-                try:
-                    hop_info['ttl'] = hop.attrib['ttl']
-                except KeyError:
-                    hop_info['ttl'] = None
-                try:
-                    hop_info['rtt'] = hop.attrib['rtt']
-                except KeyError:
-                    hop_info['rtt'] = None
-                try:
-                    hop_info['ip'] = hop.attrib['ipaddr']
-                except KeyError:
-                    hop_info['ip'] = None
+            if trace_element is not None:
+                hops = []
+                for hop in trace_element.findall('hop'):
+                    hop_info = {}
+                    try:
+                        hop_info['host'] = hop.attrib['host']
+                    except KeyError:
+                        hop_info['host'] = None
+                    try:
+                        hop_info['ttl'] = hop.attrib['ttl']
+                    except KeyError:
+                        hop_info['ttl'] = None
+                    try:
+                        hop_info['rtt'] = hop.attrib['rtt']
+                    except KeyError:
+                        hop_info['rtt'] = None
+                    try:
+                        hop_info['ip'] = hop.attrib['ipaddr']
+                    except KeyError:
+                        hop_info['ip'] = None
 
-                hops.append(Hop(**hop_info))
-            
-            host_instance._add_hops(*hops)
+                    hops.append(Hop(**hop_info))
+                
+                host_instance._add_hops(*hops)
 
             # Parse host scripts
             hostscript_element = host.find('hostscript')
@@ -334,4 +336,6 @@ class XMLParser:
                     host_instance._add_script(script_element.attrib['id'], script_element.attrib['output'])
 
             scan_result._add_hosts(host_instance)
+
+            return scan_result
         
