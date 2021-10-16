@@ -28,39 +28,64 @@
 from collections.abc import Iterable
 
 from . import utils
+from .exceptions import InvalidPortError
 
 
-def _parse_port_range(port_range):
-    """ Parses a port range, depending on if its an str or an Iterable.
-
-    :param port_range: Port range to parse
-    :returns: String representing the port range.
+class _PortAbstraction:
+    """ Encapsulates the logic for using tcp() and udp() functions together, and
+    generates the different syntax to be used for Nmap depending on the 
+    selected options.
     """
 
-    # If string
-    if isinstance(port_range, str):
-        port_range = port_range.strip()
+    def __init__(self, port_range):
+        self._tcp_ports = None
+        self._udp_ports = None
 
-        # If port range is a word
-        if port_range == 'all' or port_range == '*':
-            return '-'
-        elif port_range == 'default':
-            return None
+        # Flags
+        self._has_added_tcp = False
+        self._has_added_udp = False
+
+    @staticmethod
+    def _parse_port_range(port_range):
+        """ Parses a port range, depending on if its an str or an Iterable.
+
+        :param port_range: Port range to parse
+        :returns: String representing the port range.
+        """
+
+        # If string
+        if isinstance(port_range, str):
+            port_range = port_range.strip()
+
+            # If port range is a word
+            if port_range == 'all' or port_range == '*':
+                return '-'
+            elif port_range == 'default':
+                return None
+            
+            # In any other case, suppose that it is an str port range
+            # Execute ports to list to raise any possible InvalidPortError
+            _ = utils.ports_to_list()
+            return port_range
         
-        # In any other case, suppose that it is an str port range
-        # Execute ports to list to raise any possible InvalidPortError
-        _ = utils.ports_to_list()
-        return port_range
-    
-    # If iterable
-    elif isinstance(port_range, Iterable):
+        # If iterable
+        elif isinstance(port_range, Iterable):
 
-        return utils.ports_to_str(port_range)
-    
-    # In any other case, raise error
-    else:
-        raise TypeError('Invalid port_range type: {}, expected str or Iterable'.format(type(port_range)))
+            return utils.ports_to_str(port_range)
+        
+        # In any other case, raise error
+        else:
+            raise TypeError('Invalid port_range type: {}, expected str or Iterable'.format(type(port_range)))
 
+    def tcp(self, port_range):
+        """ Adds a port range to the TCP port selection.
+        """
+
+        if self._has_added_tcp:
+            raise 
+
+        if port_range:
+            self._tcp_ports.append(self._parse_port_range(port_range))
 
 def tcp(port_range):
     """ Returns TCP like syntax for port scanning.
