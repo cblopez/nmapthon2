@@ -30,7 +30,7 @@ import xml.etree.ElementTree as ET
 
 from .elements import Host, Port, Service, OperatingSystem, Hop
 from .results import NmapScanResult
-from .exceptions import _XMLParsingError
+from .exceptions import XMLParsingError
 
 class XMLParser:
     """ Used to parse Nmap outputs into Python objects.
@@ -52,29 +52,18 @@ class XMLParser:
     def xml_tree(self):
         return self._xml_tree
 
-    def parse_file(self, file_path: str, as_boolean: bool = False):
+    def parse_file(self, file_path: str):
         """ Parse a XML file in the system.
 
         :param file_path: Path from the file as a String or a Path object.
-        :param as_boolean: If True, the method will return True if file is found and parsed
-                           successfully, but False in any other case. If False, the common 
-                           FileNotFoundError exception will be raised.
         :raises FileNotFoundError: If file is not found and as_boolean is False.
         :returns: Parsed file as NmapScanResult.
         """
 
         if isinstance(file_path, pathlib.Path):
             file_path = file_path.absolute
-        try:
-            with open(file_path) as f:
-                return self._parse(f.read())
-        except FileNotFoundError:
-            if as_boolean:
-                return False
-            else:
-                raise
-        else:
-            return True
+        with open(file_path) as f:
+            return self._parse(f.read())
 
     def parse_plain(self, plain_text: str):
         """ Parse a plain string that contains the XML.
@@ -92,7 +81,10 @@ class XMLParser:
         :returns: Scan result
         """
 
-        self._xml_tree = ET.fromstring(text)
+        try:
+            self._xml_tree = ET.fromstring(text)
+        except ET.ParseError:
+            raise XMLParsingError('Cannot parse Nmap XML output') from None
 
         # Parse general scan information
         general_info = {}
@@ -124,9 +116,9 @@ class XMLParser:
         for attribute, value in self._xml_tree.find('.//hosts').attrib.items():
             if attribute == 'up':
                 general_info['hosts_up'] = value
-            elif attribute == 'time':
+            elif attribute == 'down':
                 general_info['hosts_down'] = value
-            elif attribute == 'time':
+            elif attribute == 'total':
                 general_info['num_hosts'] = value
 
         scan_info = {}
@@ -162,13 +154,13 @@ class XMLParser:
             }
             status_element = host.find('status')
             if status_element is None:
-                raise _XMLParsingError('Could not get status from host')
+                raise XMLParsingError('Could not get status from host')
             host_info['state'] = status_element.attrib['state'] 
             host_info['reason'] = status_element.attrib['reason'] 
             host_info['reason_ttl'] = status_element.attrib['reason_ttl'] 
             address_items = host.findall('.//address')
             if not address_items:
-                raise _XMLParsingError('Could not be able to parse host address')
+                raise XMLParsingError('Could not be able to parse host address')
             
             # Parse IPv4 and IPv6 if exist
             for addr in address_items:
@@ -178,7 +170,7 @@ class XMLParser:
                     host_info['ipv6'] = addr.attrib['addr']
             
             if 'ipv4' not in host_info and 'ipv6' not in host_info:
-                raise _XMLParsingError('Cannot parse host that no IPv4 nor IPv6 address')
+                raise XMLParsingError('Cannot parse host that no IPv4 nor IPv6 address')
 
             # Parse hostnames
             hostnames_element = host.find('hostnames')
@@ -206,7 +198,7 @@ class XMLParser:
                     
                     state_element = port.find('state')
                     if state_element is None:
-                        raise _XMLParsingError('Cannot find state element from port')
+                        raise XMLParsingError('Cannot find state element from port')
                     port_info['state'] = state_element.attrib['state']
                     port_info['reason'] = state_element.attrib['reason']
                     port_info['reason_ttl'] = state_element.attrib['reason_ttl']
@@ -337,5 +329,5 @@ class XMLParser:
 
             scan_result._add_hosts(host_instance)
 
-            return scan_result
+        return scan_result
         

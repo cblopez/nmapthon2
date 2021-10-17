@@ -22,8 +22,11 @@
 
 import datetime
 
+from . import utils
 from .elements import Host
 
+
+OUTPUT_FORMATS = ['normal', 'grep', 'xml']
 
 class NmapScanResult:
     """ An instance of this class encapsulates the output of a Nmap
@@ -46,7 +49,7 @@ class NmapScanResult:
     __slots__ = ('_scanner', '_arguments', '_start_timestamp', '_start_datetime',
                  '_version', '_end_timestamp', '_end_datetime', '_elapsed', '_summary',
                  '_exit_status', '_hosts_up', '_hosts_down', '_num_hosts', '_scan_info',
-                 '_verbose', '_debug', '_hosts')
+                 '_verbose', '_debug', '_hosts', '_tolerant_errors', '_xml_output', '_grep_output', '_normal_output')
 
     def __init__(self, **kwargs):
         self.scanner = kwargs.get('scanner', None)
@@ -69,6 +72,12 @@ class NmapScanResult:
         self.debug = kwargs.get('debug', None)
 
         self._hosts = []
+
+        self._tolerant_errors = None
+
+        self._xml_output = None
+        self._grep_output = None
+        self._normal_output = None
 
     @property
     def scanner(self):
@@ -233,6 +242,67 @@ class NmapScanResult:
         else:
             self._debug = None
 
+    @property
+    def tolerant_errors(self):
+        return self._tolerant_errors
+    
+    @tolerant_errors.setter
+    def tolerant_errors(self, v):
+        assert v is None or isinstance(v, str), 'NmapScanResult.tolerant_errors must be None or str'
+
+        self._tolerant_errors = v
+
+    def __len__(self):
+        return len(self._hosts)
+    
+    def __getitem__(self, v):
+        """ Flexible get item by position, ip, ip ranges, hostnames and any combination of the last three.
+        """
+        if isinstance(v, int):
+            return self._hosts[v]
+        elif isinstance(v, str):
+            to_return = []
+            multi_return = False
+            v = v.strip()
+            if ' ' in v:
+                v = [x for x in v.split() if v]
+            else:
+                v = [v]
+
+            if len(v) > 1:
+                multi_return = True
+
+            for i in v:
+                ips = []
+                hostnames = []
+                if utils._SINGLE_IP_ADDRESS_REGEX.fullmatch(i):
+                    ips.append(i)
+                elif utils._IP_ADDRESS_WITH_CIDR_REGEX.fullmatch(i):
+                    ips.extend(utils.dispatch_network(i))
+                elif utils._IP_RANGE_REGEX.fullmatch(i):
+                    split_value = i.split('-')
+                    ips.extend(utils.ip_range(split_value[0], split_value[1]))
+                elif utils._PARTIAL_IP_RANGE_REGEX.fullmatch(i):
+                    ips.extend(utils.partial_ip_range(i))
+                else:
+                    hostnames.append(i)
+            
+            for host in self._hosts:
+                if host.ipv4 in ips or [i for i in host.hostnames() if i in hostnames]:
+                    to_return.append(host)
+            
+            if not multi_return:
+                try:
+                    return to_return[0]
+                except IndexError:
+                    return None
+            
+            else:
+                return to_return
+
+        else:
+            raise TypeError('Invalid index type. Must be int or str, but found {}'.format(type(v)))
+
     def _add_hosts(self, *args):
         """ Add hosts objects to the current instance.
 
@@ -244,3 +314,27 @@ class NmapScanResult:
             if not isinstance(i, Host):
                 raise TypeError('Cannot add non-Host objects to a NmapScanResult')
             self._hosts.append(i)
+
+    def scanned_hosts(self):
+        """ Returns the hosts objects from the hosts that responded to the scan
+        
+        :return: List of hosts objects
+        """
+
+        return self._hosts
+    
+    def get_output(self, output_type):
+        """ Returns, if any, the specified output format from 'xml', 'grep' or 'normal'.
+
+        :returns: String representing the Nmap output from the specified output_type
+        """
+
+        if output_type not in OUTPUT_FORMATS:
+            raise ValueError('Invalid output_type value. Expected on of the follwong: {}'.format(', '.join(OUTPUT_FORMATS)))
+        
+        if output_type == 'xml':
+            return self._xml_output
+        elif output_type == 'normal':
+            return self._normal_output
+        elif output_type == 'grep':
+            return self._grep_output

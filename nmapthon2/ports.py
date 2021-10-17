@@ -59,8 +59,15 @@ class _PortAbstraction:
         :returns: String representing the port range.
         """
 
+        # If int
+        if isinstance(port_range, int):
+            if not utils.valid_port(port_range):
+                raise InvalidPortError('Invalid port number: {}'.format(port_range))
+            
+            return str(port_range)
+
         # If string
-        if isinstance(port_range, str):
+        elif isinstance(port_range, str):
             port_range = port_range.strip()
 
             # If port range is a word

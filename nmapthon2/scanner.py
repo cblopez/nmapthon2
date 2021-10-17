@@ -34,16 +34,18 @@ import os
 
 from collections.abc import Iterable
 
+from nmapthon2.results import NmapScanResult
+
 from .parser import XMLParser
-from .exceptions import InvalidArgumentError, NmapScanError
+from .exceptions import InvalidArgumentError, NmapScanError, XMLParsingError
 from .ports import _PortAbstraction
 
 
 OUTPUT_FORMATS = ('all', 'xml', 'normal', 'grep')
 OUTPUT_RELATION = {
-    'xml': 'X',
-    'normal': 'N',
-    'grep': 'G'
+    'xml': '.xml',
+    'normal': '.nmap',
+    'grep': '.gnmap'
 }
 
 
@@ -142,7 +144,7 @@ class NmapScanner:
         :returns: Parsed string
         """
 
-        if isinstance(ports, str) or isinstance(ports, Iterable):
+        if isinstance(ports, (str, int)) or isinstance(ports, Iterable):
             return _PortAbstraction()._malleable(ports).to_nmap_syntax()
         elif isinstance(ports, _PortAbstraction):
             return ports.to_nmap_syntax()
@@ -157,18 +159,33 @@ class NmapScanner:
         """
 
         if isinstance(targets, str):
+            _ = shlex.split(targets)
             return targets
         elif isinstance(targets, Iterable):
-            return ' '.join(targets)
+            targets_str = ' '.join(targets)
+            _ = shlex.split(targets_str)
+            return targets_str
         else:
             raise InvalidArgumentError('Invalid targets type, expected str or Iterable, but got {}'.format(type(targets)))
 
-    def _inner_scan(self, targets, ports=None, arguments=None, output=None, engine=None, preprocessor=None):
+    def _delete_output_files(self, random_nmap_output_filename):
+        """ Deletes all generated files from Nmap
+        
+        :param random_nmap_output_filename: Random string to be used for file generation
+        """
+        for i in ('.xml', '.gnmap', '.nmap'):
+            try:
+                os.remove(os.path.join(self._temp_folder, random_nmap_output_filename, i))
+            except FileNotFoundError:
+                pass
+
+    def _inner_scan(self, targets, random_nmap_base_filename, dry_run=False, ports=None, arguments=None, output=None, engine=None, preprocessor=None) -> NmapScanResult:
         """ Execute an Nmap scan based on on a series of targets, and optional ports and
         arguments. For multi-output format storage the output argument can be set with 
         the needed extersions or output parameters.
 
         :param targets: List of targets in an Iterable or str.
+        :param random_nmap_base_filename: Random Nmap filename to create output files
         :param ports: Ports in str or list format
         :param arguments: Arguments to execute within the scan.
         :param output: Tuple or list of output formats.
@@ -200,12 +217,14 @@ class NmapScanner:
         # Depending on the output argument, should add '-oX -' or start handling output through temp files.
         if output:
             output = self._parse_output_flag(output)
-            random_nmap_base_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
             nmap_command += '-oA {} '.format(os.path.join(self._temp_folder, random_nmap_base_filename))
         else:
             nmap_command += '-oX - '
-        
+
         nmap_command += targets
+
+        if dry_run:
+            return None
 
         nmap_process = subprocess.Popen(nmap_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         exec_output, exec_error = nmap_process.communicate()
@@ -215,20 +234,41 @@ class NmapScanner:
             
             # If no output was set, parse directly from output
             if not output:
-                result = self._xml_parser.parse_plain(exec_output)
+                try:
+                    result = self._xml_parser.parse_plain(exec_output)
+                except XMLParsingError:
+                    raise NmapScanError(exec_error.decode('utf8'))
 
             # If output was set, parse it from XML output file.
             else:
-                result = self._xml_parser.parse_file(os.path.join(self._temp_folder, '{}.xml'.format(random_nmap_base_filename)))
+                try:
+                    result = self._xml_parser.parse_file(os.path.join(self._temp_folder, '{}.xml'.format(random_nmap_base_filename)))
+                except XMLParsingError:
+                    raise NmapScanError(exec_error.decode('utf8'))
+                
+                outputs = { 'xml': None, 'normal': None, 'grep': None }
+                for i in output:
+                    with open(os.path.join(self._temp_folder, '{}{}'.format(random_nmap_base_filename, OUTPUT_RELATION[i]))) as f:
+                        outputs[i] = f.read()
+                
+                result._normal_output = outputs['normal']
+                result._grep_output = outputs['grep']
+                result._xml_output = outputs['xml']
+
+            # If execution reaches this point, then Nmapthon2 has parsed the XML correctly, but they might be tolerant errors remaining
+            if len(exec_error):
+                result.tolerant_errors = exec_error.decode('utf8')
+
+            return result
         
-        return result, exec_error
+        else:
+            raise NmapScanError('No output given from Nmap')
     
-    def scan(self, targets, ports=None, arguments=None, output=None, engine=None, preprocessor=None):
-        """ Execute an Nmap scan based on on a series of targets, and optional ports and
-        arguments. For multi-output format storage the output argument can be set with 
-        the needed extersions or output parameters.
+    def scan(self, targets, dry_run=False, ports=None, arguments=None, output=None, engine=None, preprocessor=None):
+        """ Wraps the main scanning function execution to ensure output file deletion in case output is given
 
         :param targets: List of targets in an Iterable or str.
+        :param dry_run: Set to True if you just want to test your parameters
         :param ports: Ports in str or list format
         :param arguments: Arguments to execute within the scan.
         :param output: Tuple or list of output formats.
@@ -236,4 +276,10 @@ class NmapScanner:
         :param preprocessor: NSEPostProcessor object ofr custom NSE script parsing
         """
 
-        return self._inner_scan(targets, ports=ports, arguments=arguments, output=output)
+        random_nmap_output_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
+
+        try:
+            return self._inner_scan(targets, random_nmap_output_filename, dry_run=dry_run, ports=ports, arguments=arguments, output=output, engine=engine, preprocessor=preprocessor)
+        finally:
+            if output:
+                self._delete_output_files(random_nmap_output_filename)

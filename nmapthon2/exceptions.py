@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 __all__ = ['NmapScanError', 'InvalidPortError', 'InvalidArgumentError', 'MalformedIpAddressError',
-           'EngineError', '_XMLParsingError']
+           'EngineError', 'XMLParsingError']
 
 
 class NmapScanError(Exception):
@@ -56,7 +56,7 @@ class InvalidArgumentError(NmapScanError):
         Exception.__init__(self, message)
 
 
-class _XMLParsingError(Exception):
+class XMLParsingError(Exception):
     """ Exception class for nmap output parsing errors.
     """
 
