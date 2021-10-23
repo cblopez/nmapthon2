@@ -4,6 +4,4 @@ from nmapthon2.ports import top_ports
 
 # result = XMLParser().parse_file('./test.xml')
 test = NmapScanner()
-result = test.scan('localhost 192.168.0.67', ports=800, arguments='-sS -T5', output='grep')
-
-print(result.get_output('normal'))
+result = test.scan('localhost', ports=800, arguments='-sS -T5', output='grep')

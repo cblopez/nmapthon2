@@ -174,10 +174,10 @@ class XMLParser:
 
             # Parse hostnames
             hostnames_element = host.find('hostnames')
-            hostnames_info = {}
             if hostnames_element is not None:
+                host_info['hostnames'] = {}
                 for hostname_element in hostnames_element:
-                    host_info[hostname_element.attrib['name']] = hostname_element.attrib['type']
+                    host_info['hostnames'][hostname_element.attrib['name']] = hostname_element.attrib['type']
 
             # Get OS fingerprint
             os_fingerprint_element = host.find('.//osfingerprint')

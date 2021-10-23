@@ -49,7 +49,8 @@ class NmapScanResult:
     __slots__ = ('_scanner', '_arguments', '_start_timestamp', '_start_datetime',
                  '_version', '_end_timestamp', '_end_datetime', '_elapsed', '_summary',
                  '_exit_status', '_hosts_up', '_hosts_down', '_num_hosts', '_scan_info',
-                 '_verbose', '_debug', '_hosts', '_tolerant_errors', '_xml_output', '_grep_output', '_normal_output')
+                 '_verbose', '_debug', '_hosts', '_tolerant_errors', '_xml_output', 
+                 '_grep_output', '_normal_output', '_index')
 
     def __init__(self, **kwargs):
         self.scanner = kwargs.get('scanner', None)
@@ -71,13 +72,15 @@ class NmapScanResult:
         self.verbose = kwargs.get('verbose', None)
         self.debug = kwargs.get('debug', None)
 
+        self.tolerant_errors = None
+        
         self._hosts = []
-
-        self._tolerant_errors = None
 
         self._xml_output = None
         self._grep_output = None
         self._normal_output = None
+
+        self._index = -1
 
     @property
     def scanner(self):
@@ -257,17 +260,29 @@ class NmapScanResult:
     
     def __getitem__(self, v):
         """ Flexible get item by position, ip, ip ranges, hostnames and any combination of the last three.
+
+        If an integer is specified, then it will return a host in position v, acting as a normal list.
+        If an str is specified, then it will check if the provided string has spaces (which indicates that the user is requesting multiple hosts)
+        and if so, it will do a single search for all of them.
+        If tuple is set, then the user has specified multiple arguments separated by commas, so it will act the same as handling strings with spaces.
+
+        If the user specifies a multi-host value, then the resposne will be a list, empty or not.
+        If the user specifies an integer, or a single host to be return, then the method will return None or the host, if it exists.
+
+        :param v: Value, or values, to retrive from the hosts list.
         """
+
         if isinstance(v, int):
             return self._hosts[v]
-        elif isinstance(v, str):
+        elif isinstance(v, (str, tuple)):
             to_return = []
             multi_return = False
-            v = v.strip()
-            if ' ' in v:
-                v = [x for x in v.split() if v]
-            else:
-                v = [v]
+            if isinstance(v, str):
+                v = v.strip()
+                if ' ' in v:
+                    v = [x for x in v.split() if v]
+                else:
+                    v = [v]
 
             if len(v) > 1:
                 multi_return = True
@@ -287,6 +302,7 @@ class NmapScanResult:
                 else:
                     hostnames.append(i)
             
+            
             for host in self._hosts:
                 if host.ipv4 in ips or [i for i in host.hostnames() if i in hostnames]:
                     to_return.append(host)
@@ -301,7 +317,41 @@ class NmapScanResult:
                 return to_return
 
         else:
-            raise TypeError('Invalid index type. Must be int or str, but found {}'.format(type(v)))
+            raise TypeError('Invalid index type. Must be int, str or tuple but found {}'.format(type(v)))
+
+    def __next__(self):
+        """ Defines the iterator behaviour
+        """
+        if (self._index + 1) < len(self._hosts):
+            self._index += 1
+            return self._hosts[self._index]
+        else:
+            raise StopIteration
+
+    def __iter__(self):
+        """ Return an iterator for the hosts
+        """
+
+        return iter(self._hosts)
+
+    def __len__(self):
+        """ Get the length of the result object
+        """
+
+        return len(self._hosts)
+
+    def __contains__(self, v):
+        """ Check if an element v is in result
+        """
+        is_ip = False
+        if utils._SINGLE_IP_ADDRESS_REGEX.fullmatch(v):
+            is_ip = True
+
+        for i in self:
+            if (is_ip and i.ipv4 == v) or (not is_ip and v in i.hostnames()):
+                return True
+
+        return False
 
     def _add_hosts(self, *args):
         """ Add hosts objects to the current instance.
