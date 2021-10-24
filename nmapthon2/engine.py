@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .utils import targets_to_list, ports_to_list
+from .utils import targets_to_list, ports_to_list, extend_port_list
 
 from .exceptions import EngineError
 from inspect import signature
@@ -83,7 +83,7 @@ class _NSEHostScript:
             if v.strip() == '*':
                 self._targets = v
             else:
-                self._targets = tu.parse_targets_from_str(v)
+                self._targets = targets_to_list(v)
         else:
             raise EngineError('Invalid targets data type: {}'.format(type(v)))
 
@@ -152,10 +152,10 @@ class _NSEPortScript(_NSEHostScript):
             self._ports = ports_to_list(v)
 
         elif isinstance(v, list):
-            self._ports = pu.single_port_list(v)
+            self._ports = extend_port_list(v)
 
         elif isinstance(v, int):
-            self._ports = pu.parse_ports_from_str(str(v))
+            self._ports = ports_to_list(str(v))
 
         else:
             raise EngineError('Invalid ports data type: {}'.format(type(v)))
@@ -182,7 +182,7 @@ class _NSEPortScript(_NSEHostScript):
             self._states = v
 
 
-class NSEEngine:
+class NSE:
     """ Represents the Nmap NSE script engine. It is used to instantiate an object that is passed to the
     NmapScanner __init__ method and it registers new "Python NSE scripts", that are function written in Python. These
     functions execute depending on the states defined by the user, and they can be host or port oriented.
@@ -213,7 +213,7 @@ class NSEEngine:
         :type states: None, list
         :type args: None, list, tuple
         """
-        self.port_scripts.append(_PyNSEPortScript(name, func, targets, args, port, proto, states))
+        self.port_scripts.append(_NSEPortScript(name, func, targets, args, port, proto, states))
 
     def _register_host_script(self, func, name, targets, args=None):
         """ Register a given function to execute on a hosts
@@ -225,7 +225,7 @@ class NSEEngine:
         :type name: str
         :type args: None, list, tuple
         """
-        self.host_scripts.append(_PyNSEHostScript(name, func, targets, args))
+        self.host_scripts.append(_NSEHostScript(name, func, targets, args))
 
     def port_script(self, name, port, targets='*', proto='*', states=None, args=None):
         """ A decorator to register the given function into the PyNSEEngine as a port script.
@@ -298,12 +298,3 @@ class NSEEngine:
                     self.current_state = state
 
                     yield i
-
-
-class NSEPostProcessor:
-    """ Registers functions to post-process NSE scripts outputs.
-
-    Functions can be globally 
-    """
-
-    pass

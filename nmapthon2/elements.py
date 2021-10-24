@@ -25,6 +25,7 @@
 # pure Nmap XML output into Python objects.
 
 import datetime
+from .exceptions import MissingScript
 
 
 class Host:
@@ -36,7 +37,7 @@ class Host:
     """
 
     __slots__ = ('_state', '_reason', '_reason_ttl', '_start_time', '_end_time', '_ipv4', '_ipv6',
-                 '_hostnames', '_ports', '_oses', '_fingerprint', '_trace', '_scripts')
+                 '_hostnames', '_ports', '_oses', '_fingerprint', '_trace', '_scripts', '_index')
 
     def __init__(self, **kwargs):
         self.state = kwargs.get('state', None)
@@ -52,6 +53,8 @@ class Host:
         self._oses = kwargs.get('oses', [])
         self._trace = kwargs.get('trace', [])
         self._scripts = kwargs.get('scripts', {})
+
+        self._index = -1
 
     @property
     def state(self):
@@ -144,6 +147,27 @@ class Host:
 
         self._fingerprint = v
 
+    def __eq__(self, v):
+        """ Returns True if this object is equaled to its IPv4, IPv6 or any of its hostnames
+        
+        :param v: Value to compare
+        :returns: True if any IPv4, IPv6 or hostnames matches
+        """
+        return self.ipv4 == v or self.ipv6 == v or v in self.hostnames()
+
+    def __len__(self):
+        return len(self._ports)
+
+    def __iter__(self):
+        return iter(self._ports)
+    
+    def __next__(self):
+        if (self._index + 1) < len(self._ports):
+            self._index += 1
+            return self._ports[self._index]
+        else:
+            raise StopIteration
+
     def _add_port(self, *args):
         """ Add a port object binded to the current instance
 
@@ -188,6 +212,29 @@ class Host:
         """
         self._scripts[script_name] = script_output
 
+    def scanned_ports(self):
+        """ Returns the list of scanned ports
+        
+        :returns: List of scanned ports
+        """
+        return self._ports
+
+    def udp_ports(self):
+        """ Returns the list of scanned UDP ports
+        
+        :returns: List of scanned UDP ports
+        """
+
+        return [x for x in self._ports if x.protocol == 'udp']
+
+    def tcp_ports(self):
+        """ Returns the list of scanned TCP ports
+        
+        :returns: List of scanned TCP ports
+        """
+
+        return [x for x in self._ports if x.protocol == 'tcp']
+
     def hostnames(self, include_type: bool = False) -> list:
         """ Return all the host related hostnames.
         
@@ -203,6 +250,45 @@ class Host:
             return [x for x in self._hostnames.keys()]
         else:
             return [(x, y) for x, y in self._hostnames.items()]
+
+    def os_matches(self):
+        """ Returns a list from all the OperatingSystem objects linked to the host
+        
+        :returns: List of operating systems
+        """
+
+        return self._oses
+
+    def most_accurate_os(self):
+        """ Returns the OperatingSystem object with the highest accuracy
+        
+        :returns: OperatingSystem or None if not OS where matches
+        """
+
+        if not len(self._oses):
+            return None
+        else:
+            return max(self._oses, key=lambda x: x.accuracy)
+
+    def traceroute(self):
+        """ Returns a list from all the Hop objects from a traceroute.
+        
+        :returns: List of Hops
+        """
+
+        return self._trace
+
+    def get_script(self, script_name):
+        """ Returns a script from host's scripts or raises MissingScript if it does not exist
+        
+        :param script_name: Name of the script
+        :returns: Script output
+        :raises: MissingScript if the given script is nor registered
+        """
+        if script_name in self._scripts:
+            return self._scripts[script_name]
+        else:
+            raise MissingScript('No script output for the given script: {}'.format(script_name))
 
 
 class Port:
@@ -221,6 +307,7 @@ class Port:
         self.state = kwargs.get('state', None)
         self.reason = kwargs.get('reason', None)
         self.reason_ttl = kwargs.get('reason_ttl', None)
+        self._service = None
 
     @property
     def protocol(self):
@@ -229,6 +316,8 @@ class Port:
     @protocol.setter
     def protocol(self, v):
         assert v is None or isinstance(v, str), 'Port.protocol must be None or str'
+
+        self._protocol = v
 
     @property
     def number(self):
@@ -274,6 +363,18 @@ class Port:
     def service(self):
         return self._service
 
+    def __eq__(self, v) -> bool:
+        """ Evaluates the port instance against an integer, which directly compares self.port with 
+        the value to be compared
+
+        :returns: True if the ports are the same or False in any other case
+        """
+
+        if not isinstance(v, int):
+            raise TypeError('Cannot compare Port with non-integer variables')
+        
+        return self.number == v
+
     def _add_service(self, service):
         """ Bind a service with the current instance
         
@@ -284,6 +385,14 @@ class Port:
             raise TypeError('Cannot bind a non-Service instance to a port')
 
         self._service = service  
+
+    def get_service(self):
+        """ Returns a potential Service instance linked to the port, or None in any other case
+        
+        :returns: Service instance or None
+        """
+
+        return self._service
 
 
 class Service:
@@ -411,6 +520,19 @@ class Service:
 
         self._scripts[script_name] = script_output
 
+    def get_script(self, script_name):
+        """ Returns a port script associated with this service.
+        
+        :param script_name: Name of the script to return
+        :returns: Script output
+        :raises MissingScript if the script_name is not on the instance's scripts
+        """
+
+        if script_name in self._scripts:
+            return self._scripts[script_name]
+        else:
+            raise MissingScript('No script output for the given script: {}'.format(script_name))
+
 
 class OperatingSystemMatch:
     """ Represents a single match from an operating system.
@@ -498,11 +620,11 @@ class OperatingSystem:
     def __init__(self, **kwargs):
         self.name = kwargs.get('name', None)
         self.accuracy = kwargs.get('accuracy', None)
-        self.matches = []
+        self._matches = []
 
         # Add all matches objects
         for match_info in kwargs.get('matches', []):
-            self.matches.append(OperatingSystemMatch(**match_info))
+            self._matches.append(OperatingSystemMatch(**match_info))
 
     @property
     def name(self):
@@ -523,16 +645,9 @@ class OperatingSystem:
         assert v is None or isinstance(v, str), 'OperatingSystem.accuracy must be None or str'
 
         self._accuracy = float(v)
-    
-    @property
-    def matches(self):
-        return self._matches
-    
-    @matches.setter
-    def matches(self, v):
-        assert v is None or isinstance(v, list), 'OperatingSystem.name must be None or list'
 
-        self._matches = v
+    def get_matches(self):
+        return self._matches
 
 
 class Hop:

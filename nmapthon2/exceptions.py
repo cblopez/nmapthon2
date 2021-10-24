@@ -63,6 +63,13 @@ class XMLParsingError(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
 
+class MissingScript(Exception):
+    """ Exception to be raised when a script is missing
+    """
+
+    def __init__(self, message):
+        super().__init__(message)
+
 
 class EngineError(Exception):
     """ Exception class for PyNSEEngine errors

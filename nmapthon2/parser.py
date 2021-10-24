@@ -265,22 +265,11 @@ class XMLParser:
                     matches = []
                     for os_match_element in os_element.findall('osclass'):
                         match_info = {}
-                        try:
-                            match_info['type'] = os_match_element.attrib['type']
-                        except KeyError:
-                            match_info['type'] = None
-                        try:
-                            match_info['vendor'] = os_match_element.attrib['vendor']
-                        except KeyError:
-                            match_info['vendor'] = None
-                        try:
-                            match_info['family'] = os_match_element.attrib['family']
-                        except KeyError:
-                            match_info['family'] = None
-                        try:
-                            match_info['generation'] = os_match_element.attrib['generation']
-                        except KeyError:
-                            match_info['generation'] = None
+                        for attrib_name in ('type', 'vendor', 'family', 'generation'):
+                            try:
+                                match_info[attrib_name] = os_match_element.attrib[attrib_name]
+                            except KeyError:
+                                match_info[attrib_name] = None
                         
                         match_info['cpe'] = None
 
