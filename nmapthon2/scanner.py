@@ -39,6 +39,7 @@ from nmapthon2.results import NmapScanResult
 from .parser import XMLParser
 from .exceptions import InvalidArgumentError, NmapScanError, XMLParsingError
 from .ports import _PortAbstraction
+from .engine import NSE
 
 
 OUTPUT_FORMATS = ('all', 'xml', 'normal', 'grep')
@@ -62,14 +63,22 @@ class NmapScanner:
     the operating system temporal folder to write all the output formats, process them, and 
     delete them.
 
+    :param nmap_bin: Path to the binary fail containing Nmap
+    :param engine: NSE object for all scans performed with this scanner.
+
     Attributes:
         _temp_folder: Temporal folder from the current OS
         _xml_parser: Parser for Nmap scan results
     """
 
-    def __init__(self):
+    def __init__(self, nmap_bin=None, engine=None):
         self._temp_folder = tempfile.gettempdir()
         self._xml_parser = XMLParser()
+
+        assert nmap_bin is None or isinstance(nmap_bin, str), 'nmap_bin must be None or str'
+        assert engine is None or isinstance(engine, NSE), 'engine must be None or an instance of NSE'
+        self._nmap_bin = nmap_bin
+        self._engine = engine
 
     @staticmethod
     def _parse_command_line_arguments(arguments_string):
@@ -179,7 +188,7 @@ class NmapScanner:
             except FileNotFoundError:
                 pass
 
-    def _inner_scan(self, targets, random_nmap_base_filename, dry_run=False, ports=None, arguments=None, output=None, engine=None, preprocessor=None) -> NmapScanResult:
+    def _inner_scan(self, targets, random_nmap_base_filename, dry_run=False, ports=None, arguments=None, output=None, engine=None) -> NmapScanResult:
         """ Execute an Nmap scan based on on a series of targets, and optional ports and
         arguments. For multi-output format storage the output argument can be set with 
         the needed extersions or output parameters.
@@ -190,7 +199,6 @@ class NmapScanner:
         :param arguments: Arguments to execute within the scan.
         :param output: Tuple or list of output formats.
         :param engine: NSEEngine object for custom script execution
-        :param preprocessor: NSEPostProcessor object ofr custom NSE script parsing
         """
 
         # Validate, parse parameters and add them to the command
@@ -199,7 +207,10 @@ class NmapScanner:
         targets = self._parse_targets(targets)
 
         # Add the commands
-        nmap_command = 'nmap '
+        if self._nmap_bin:
+            nmap_command = self._nmap_bin
+        else:
+            nmap_command = 'nmap '
 
         # Ports
         if ports:
@@ -226,7 +237,12 @@ class NmapScanner:
         if dry_run:
             return None
 
-        nmap_process = subprocess.Popen(nmap_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Popen raises FileNotFoundError in case the program does not exist
+        try:
+            nmap_process = subprocess.Popen(nmap_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except FileNotFoundError:
+            raise NmapScanError('Nmap was not found on the system. Please install it before using Nmapthon2')
+
         exec_output, exec_error = nmap_process.communicate()
 
         # Parse output if any
@@ -259,12 +275,30 @@ class NmapScanner:
             if len(exec_error):
                 result.tolerant_errors = exec_error.decode('utf8')
 
+            # Reference the coorect engine instance
+            if not engine:
+                engine = self._engine
+
+            # Apply the engine parser and scripts execution to the Host, Port and Service instances
+            for host in result:
+                for port in host:
+                    service = port.get_service()
+                    if service:
+                        for script_name, callback in engine._parsers.items():
+                            try:
+                                service._scripts[script_name] = callback(service._scripts[script_name])
+                            except KeyError as e:
+                                if "'{}'".format(script_name) == str(e):
+                                    pass
+                                else:
+                                    raise
+
             return result
         
         else:
             raise NmapScanError('No output given from Nmap')
     
-    def scan(self, targets, dry_run=False, ports=None, arguments=None, output=None, engine=None, preprocessor=None):
+    def scan(self, targets, dry_run=False, ports=None, arguments=None, output=None, engine=None):
         """ Wraps the main scanning function execution to ensure output file deletion in case output is given
 
         :param targets: List of targets in an Iterable or str.
@@ -273,13 +307,12 @@ class NmapScanner:
         :param arguments: Arguments to execute within the scan.
         :param output: Tuple or list of output formats.
         :param engine: NSEEngine object for custom script execution
-        :param preprocessor: NSEPostProcessor object ofr custom NSE script parsing
         """
 
         random_nmap_output_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
 
         try:
-            return self._inner_scan(targets, random_nmap_output_filename, dry_run=dry_run, ports=ports, arguments=arguments, output=output, engine=engine, preprocessor=preprocessor)
+            return self._inner_scan(targets, random_nmap_output_filename, dry_run=dry_run, ports=ports, arguments=arguments, output=output, engine=engine)
         finally:
             if output:
                 self._delete_output_files(random_nmap_output_filename)

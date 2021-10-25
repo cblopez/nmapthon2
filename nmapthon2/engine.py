@@ -190,8 +190,11 @@ class NSE:
     """
 
     def __init__(self):
-        self.host_scripts = []
-        self.port_scripts = []
+        
+        self._parsers = {}
+
+        self._host_scripts = []
+        self._port_scripts = []
 
         self.current_target = None
         self.current_port = None
@@ -213,7 +216,7 @@ class NSE:
         :type states: None, list
         :type args: None, list, tuple
         """
-        self.port_scripts.append(_NSEPortScript(name, func, targets, args, port, proto, states))
+        self._port_scripts.append(_NSEPortScript(name, func, targets, args, port, proto, states))
 
     def _register_host_script(self, func, name, targets, args=None):
         """ Register a given function to execute on a hosts
@@ -225,7 +228,17 @@ class NSE:
         :type name: str
         :type args: None, list, tuple
         """
-        self.host_scripts.append(_NSEHostScript(name, func, targets, args))
+        self._host_scripts.append(_NSEHostScript(name, func, targets, args))
+
+    def add_parser(self, script_name: str, callback):
+        """ Adds a function to the parsers for a given script name
+        
+        :param script_name: Name of the script to parse
+        :param callback: Function to execute. Must accept one parameter, which will be the script output.
+        """
+        if script_name in self._parsers:
+            raise EngineError('"{}" already has a parsing function'.format(script_name))
+        self._parsers[script_name] = callback
 
     def port_script(self, name, port, targets='*', proto='*', states=None, args=None):
         """ A decorator to register the given function into the PyNSEEngine as a port script.
@@ -272,7 +285,7 @@ class NSE:
         :param target: Target of the scripts
         :type target: str
         """
-        for i in self.host_scripts:
+        for i in self._host_scripts:
             if (isinstance(i.targets, list) and target in i.targets) or (i.targets == '*' or i.targets == target):
                 self.current_target = target
                 yield i
@@ -289,7 +302,7 @@ class NSE:
         :type state: str
         """
         
-        for i in self.port_scripts:
+        for i in self._port_scripts:
             if target in i.targets or i.targets == '*':
                 if (i.proto == '*' or proto == i.proto) and int(port) in i.ports and state in i.states:
                     self.current_target = target

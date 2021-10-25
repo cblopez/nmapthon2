@@ -245,8 +245,8 @@ class XMLParser:
                         # Bind the service instance with the port instance
                         service_instance = Service(**service_info)
 
-                        for script in service_element.findall('script'):
-                            service_instance._add_script(script.attrib['name'], script.attrib['output'])
+                        for script in port.findall('script'):
+                            service_instance._add_script(script.attrib['id'], script.attrib['output'])
 
                         port_instance._add_service(service_instance)
 
