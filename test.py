@@ -1,21 +1,24 @@
 from nmapthon2.parser import XMLParser
 from nmapthon2.scanner import NmapScanner
 from nmapthon2.ports import top_ports
-from nmapthon2.engine import NSE
+from nmapthon2.engine import NSE, NSEBlueprint, host_script
 
 #result = XMLParser().parse_file('./tests/assets/test.xml')
 
-def test(output):
-    return '{}!!!'.format(output)
+class TestNSE(NSEBlueprint):
+    
+    def __init__(self):
+        super().__init__()
+    
+    @host_script
+    def host_script_dns_brute(self, host):
+        return host
+    
+    def port_script_ssh_brute(self, host, port, service):
+        return host
 
-nse = NSE()
-nse.add_parser('http-title', test)
-test = NmapScanner(engine=nse)
+test = NmapScanner(engine=TestNSE())
 result = test.scan('localhost', ports=top_ports(1000), arguments='-sS -T5 --script http-title', output='normal')
 
-print(result.get_output('normal'))
-
 for i in result:
-    for port in i:
-        if port.get_service():
-            print(port.get_service()._scripts)
+    print(i._scripts)

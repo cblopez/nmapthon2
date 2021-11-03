@@ -280,18 +280,27 @@ class NmapScanner:
                 engine = self._engine
 
             # Apply the engine parser and scripts execution to the Host, Port and Service instances
-            for host in result:
-                for port in host:
-                    service = port.get_service()
-                    if service:
-                        for script_name, callback in engine._parsers.items():
-                            try:
-                                service._scripts[script_name] = callback(service._scripts[script_name])
-                            except KeyError as e:
-                                if "'{}'".format(script_name) == str(e):
-                                    pass
-                                else:
-                                    raise
+            if engine:
+                for host in result:
+                    # Apply any host script to the host object by reference
+                    engine._apply_host_scripts(host)
+                    for port in host:
+                        service = port.get_service()
+                        # If any parser to be used and there is a service with optential scripts, rock'em
+                        if len(engine._parsers) and service:
+                            for script_name, callback in engine._parsers.items():
+                                try:
+                                    service._scripts[script_name] = callback(service._scripts[script_name])
+                                except KeyError as e:
+                                    # If the KeyError is because of the script key not being in _scripts, then thats ok
+                                    # but if not, should raise the exception to let know the programmer.
+                                    if "'{}'".format(script_name) == str(e):
+                                        pass
+                                    else:
+                                        raise
+                        
+                        # If any port script, apply it
+                        engine._apply_port_scripts(host, port, service)
 
             return result
         

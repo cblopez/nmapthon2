@@ -77,3 +77,10 @@ class EngineError(Exception):
 
     def __init__(self, msg):
         super().__init__(msg)
+
+class StopExecution(Exception):
+    """ Exception for knowing when to not add script output
+    """
+
+    def __init__(self, msg):
+        super().__init__(msg)

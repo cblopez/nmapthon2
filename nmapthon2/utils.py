@@ -272,11 +272,7 @@ def partial_ip_range(ip_addr: str) -> list:
             partial_ranges.append([i])
     
     # Combine them all
-    for first in partial_ranges[0]:
-        for second in partial_ranges[1]:
-            for third in partial_ranges[2]:
-                for forth in partial_ranges[3]:
-                    ips.append('.'.join([str(x) for x in [first, second, third, forth]]))
+    ips.append('.'.join([str(x) for x in partial_ranges]))
     
     return ips
 
