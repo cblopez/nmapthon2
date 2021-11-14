@@ -22,29 +22,70 @@
 
 import re
 
-from typing import Iterable, Union, Callable
+from typing import Iterable, Union, Callable, get_type_hints
 
 from .utils import targets_to_list, ports_to_list, extend_port_list
 from .exceptions import EngineError, StopExecution
 from .elements import Host, Port, Service
 
 
-_CAMMEL_CASE_SUBSTITUTION_REGEX = re.compile(r'(?<!^)(?=[A-Z])')
+class _DelayedParserAbstraction:
+
+    def __init__(self, script_name, func) -> None:
+        self.script_name = script_name
+        self.func = func
+
+class NSEMeta(type):
+
+    def __init__(cls, name, bases, attrs):
+
+        _delayed_registry_set = set()
+        for name, method in attrs.items():
+            if isinstance(method, property):
+                method = method.fget
+            if hasattr(method, '_delayed_registry'):
+                _delayed_registry_set.add(getattr(method, '_delayed_registry'))
+
+        @property
+        def _delayed_registry(self):
+            registries = _delayed_registry_set.copy()
+            try:
+                registries.update(super(cls, self)._delayed_registry_set)
+            except AttributeError:
+                pass
+            return registries
+        
+        cls._delayed_registry = _delayed_registry
 
 
-def host_script(f):
+def host_script(name: str, targets: Union[str,Iterable] = '*'):
     """ Decorator to be used from a class inheriting NSE, that automatically adds the decorated function as 
         an NSE host script with the function name in snake case separated by dashes.
         
         :param targets: Targets that may be affected by the script
         :returns: Funciton decorator
     """
-    def _host_script_wrapper(self, *args):
-        print('Is executing')
-        self.add_host_script(f, 'hi', targets)
+    def inner(f):
+        f._delayed_registry = _NSEHostScript(name, f, targets, delayed=True)
         return f
-    return _host_script_wrapper
+    return inner
 
+
+def port_script(name: str, port: Union[int,str,Iterable], targets: Union[str,Iterable] = '*', 
+                proto: str = '*', states: Union[None,Iterable] = None):
+    
+    def inner(f):
+        f._delayed_registry = _NSEPortScript(name, f, targets, port, proto, states)
+        return f
+    return inner
+
+
+def parser(script_name: str):
+
+    def inner(f):
+        f._delayed_registry = _DelayedParserAbstraction(script_name, f)
+        return f
+    return inner
 
 class _NSEHostScript:
     """ An individual Python function that is executed as if it were an Nmap NSE host script.
@@ -52,17 +93,17 @@ class _NSEHostScript:
         :param name: Name of the function (PyNSEScript name)
         :param func: Function to execute
         :param args: Arguments for the function
-        :type name: str
-        :type func: function
-        :type args: list, tuple
+        :param delayed: Delayed lets the NSE object know that the script has been registered through a class, meaning 
+                        that I will need to register after instantiation (delayed registry).
     """
 
-    __slots__ = ('_name', '_func', '_targets')
+    __slots__ = ('_name', '_func', '_targets', '_delayed')
 
-    def __init__(self, name: str, func: Callable, targets: Union[str, Iterable]):
+    def __init__(self, name: str, func: Callable, targets: Union[str, Iterable], delayed: bool = False):
         self.name = name
         self.func = func
         self.targets = targets
+        self.delayed = delayed
 
     @property
     def name(self):
@@ -75,6 +116,10 @@ class _NSEHostScript:
     @property
     def targets(self):
         return self._targets
+
+    @property
+    def delayed(self):
+        return self._delayed
 
     @name.setter
     def name(self, v):
@@ -101,7 +146,11 @@ class _NSEHostScript:
                 self._targets = targets_to_list(v)
         else:
             raise EngineError('Invalid targets data type: {}'.format(type(v)))
-
+    
+    @delayed.setter
+    def delayed(self, v):
+        assert isinstance(v, bool), 'NSEHostScript.delayed must be of bool type'
+        self._delayed = v
 
 class _NSEPortScript(_NSEHostScript):
     """ Represents an NSE port script
@@ -172,7 +221,7 @@ class _NSEPortScript(_NSEHostScript):
             self._states = v
 
 
-class NSE:
+class NSE(metaclass=NSEMeta):
     """ Represents the NSE (Nmap Script Engine). It is used to instantiate an object that is passed to the
     NmapScanner __init__ or scan() methods and it registers new "Python NSE scripts", that are function written in Python. These
     functions execute depending on the conditions defined by the user, and they can be host or port oriented.
@@ -192,6 +241,16 @@ class NSE:
 
         self._host_scripts = []
         self._port_scripts = []
+
+        for i in self._delayed_registry:
+            if isinstance(i, _NSEPortScript):
+                self._port_scripts.append(i)
+            elif isinstance(i, _NSEHostScript):
+                self._host_scripts.append(i)
+            elif isinstance(i, _DelayedParserAbstraction):
+                self._parsers[i.script_name] = getattr(self, i.func.__name__)
+            else:
+                raise EngineError('Could not add NSE script to engine. Unkown type: {}'.format(type(i)))
 
     def add_port_script(self, func: Callable, name: str, targets: Union[str,Iterable], port: Union[int,str,Iterable], 
                         proto: Union[None,str,Iterable], states: Union[None,Iterable]):
@@ -296,7 +355,10 @@ class NSE:
         for i in self._host_scripts:
             if i.targets == '*' or host.ipv4 in i.targets or any(x for x in host.hostnames() if x in i.targets):
                 try:
-                    host._add_script(i.name, i.func(host))
+                    if i.delayed:
+                        host._add_script(i.name, getattr(self, i.func.__name__)(host))
+                    else:
+                        host._add_script(i.name, i.func(host))
                 except StopExecution:
                     pass
     
@@ -316,81 +378,9 @@ class NSE:
             if i.targets == '*' or host.ipv4 in i.targets or any(x for x in host.hostnames() if x in i.targets):
                 if (i.proto == '*' or port.protocol == i.proto) and port.number in i.ports and port.state in i.states:
                     try:
-                        service._add_script(i.name, i.func(host, port, service))
+                        if i.delayed:
+                            service._add_script(i.name, getattr(self, i.func.__name__)(host, port, service))
+                        else:
+                            service._add_script(i.name, i.func(host, port, service))
                     except StopExecution:
                         pass
-
-
-class NSEBlueprint(NSE):
-    """ This class is responsible for auto-registering Python functions as NSE scripts, as well as script-oriented and global parsers,
-    depending on the name of the methods themselves. To dynamically add anything of the previously mentioned, methods from classes inheriting
-    from NSEBlueprint must follow a few conventions. For a better explanation, lets divide the method name into two parts: 
-    1) Dynamic definition name
-    2) Reference name
-
-    A custom NSE method should be written as follow: def [Dynamic definition name] + [Reference name](self, arg1, arg2....):
-    You have 4 choices to select for the Dynamic definition name:
-
-    - 'host_script_' will be registered as host scripts
-    - 'port_script_' will be registered as port scripts
-    - 'parser_' will be registered as parsers
-    - 'global_parser' will be registered as global parsers
-
-    Any other methods that do not start with this strings, will not be processed by NSEBlueprint, acting as normal methods.
-
-    Now the Reference name. The name that would be assigned into Nmapthon's NSE object for later retrieving the scripts output, or to know which 
-    script may a specific parser affect, depends on the Reference name part. NSEBlueprint takes that Reference name and transforms it to snaked-dashed-case.
-    (this-is-snake-dashed-case).
-
-    So for example, having these methdos will act as described:
-        def host_script_dns_brute_force(self, host): -> Creates a host script that will be later retrieved under 'dns-brute-force' name.
-        def port_script_ssh_brute(self, host, port, service): -> Creates a port script that will be later retrieved under 'ssh-brute' name.
-        def global_parser_script_chars(self, output): -> In case of a global parser, it does not matter the Reference name, as it is not linked with a script name.
-        def parser_http_title(self, output): -> Will register an specific parser for the 'http-title' script. 
-
-    Note that this methods, apart from the self parameter, must except the same parameters as if they were not object-oriented. This means that
-    if you would define a host script like:
-        @host_script('custom-script', targets='*')
-        def my_own_host_script(host):
-            print(host)
-            return None
-    
-    The equivalent class method may be:
-
-        def host_script_custom_script(self, host):
-            print(host)
-            return None
-    """
-
-    def __init__(self):
-        super().__init__()
-        for entry in dir(self):
-            # if entry.startswith('host_script_'):
-            #     print(getattr(self, entry).__name__ ==)
-            #     script_name = self._to_snake_dashed_case(entry[12:])
-            #     self.add_host_script(getattr(self, entry), script_name, '*')
-            # elif entry.startswith('port_script_'):
-            #     print(getattr(self, entry).__name__)
-            #     script_name = self._to_snake_dashed_case(entry[12:])
-            #     self.add_port_script(getattr(self, entry), script_name, '*', 135, '*', ['open'])
-            # elif entry.startswith('parser_'):
-            #     script_name = self._to_snake_dashed_case(entry[7:])
-            #     self.add_parser(script_name, getattr(self, entry))
-            # elif entry.startswith('global_parser_'):
-            #     script_name = self._to_snake_dashed_case(entry[14:])
-            #     self.add_global_parser(getattr(self, entry))
-            reference = getattr(self, entry)
-            try:
-                if reference.__name__ == '_host_script_wrapper':
-                    print(reference.__name__)
-            except AttributeError:
-                pass
-    
-    @staticmethod
-    def _to_snake_dashed_case(name):
-        """ Transforms a cammelCase name or snake_case name into snake-dashed name.
-        
-        :returns: Name in snake dashed case 
-        """
-
-        return  _CAMMEL_CASE_SUBSTITUTION_REGEX.sub('-', name).replace('_', '-').lower()
