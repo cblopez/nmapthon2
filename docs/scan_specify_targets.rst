@@ -8,7 +8,7 @@ Targets are the only required parameter to be specified on the ``scan()`` method
 * IP addresses
 * IP ranges
 * IP partial ranges
-* IP networks with CIDR masks
+* Networks with CIDR masks
 
 The ``targets`` parameter can be either a single ``str`` or an ``Iterable``.
 

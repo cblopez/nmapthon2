@@ -5,4 +5,5 @@ from nmapthon2.engine import NSE, host_script, parser
 
 
 test = NmapScanner()
-result = test.scan('localhost 192.168.0.0/24', ports=(22, '50-100'), dry_run=True)
+result = test.scan('localhost', arguments='-7 -T4 -n')
+print(result)

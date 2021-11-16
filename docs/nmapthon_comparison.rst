@@ -10,8 +10,9 @@ start using this new version:
 * **More Nmap parsing**: This new version parses a lot more information from the Nmap scan output compared with the original library, with a much cleaner code.
 * **Better design**: From the usability perspective, you should only need to instantiate one single "Nmap scanner" and reuse it any number of times you would like. The original library would make you alter the scanner object properties or instantiate a new scanner, which is fine, but not optimal.
 * **Customization**: Several options have been added to help with Nmap execution from the Python code:
-    * Resume scans.
     * Get async scans completion percentage.
+    * Resume Nmap scans from its XML file.
+    * Choose the nmap binary file.
     * Execute Nmap with a raw string containing the options, ports and targets.
     * Get the Nmap output right in your result object with almost all supported formats by the tool (XML, normal, grep).
 * **Full Object-Oriented**: Instead of using a wide variety of methods from a single instance, it is easier to separate the output information into different inter-related objects, with more properties and less methods. Tools implementing Nmapthon2 will end up with a much cleaner code than before.

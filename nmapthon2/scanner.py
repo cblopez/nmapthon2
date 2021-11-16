@@ -24,7 +24,7 @@
 # This module contains the XML parser used to transform 
 # pure Nmap XML output into Python objects.
 
-from re import sub
+import pathlib
 import shlex
 import tempfile
 import subprocess
@@ -165,9 +165,13 @@ class NmapScanner:
         """
 
         if isinstance(targets, str):
+            if ' nmapthon ' in targets:
+                raise NmapScanError('You dare to scan me?')
             _ = shlex.split(targets)
             return targets
         elif isinstance(targets, Iterable):
+            if 'nmapthon' in targets:
+                raise NmapScanError('You dare to scan me?')
             targets_str = ' '.join(targets)
             _ = shlex.split(targets_str)
             return targets_str
@@ -185,10 +189,13 @@ class NmapScanner:
             except FileNotFoundError:
                 pass
 
-    def _execute_nmap(self, nmap_arguments, output: Union[None,bool] = None, engine: Union[None,NSE] = None):
+    def _execute_nmap(self, nmap_arguments, output: Union[None,bool] = None, engine: Union[None,NSE] = None, skip_processing: bool = False) -> NmapScanResult:
         """ Execute nmap and any post-processing with the given command line arguments
         
         :param nmap_arguments: List of Nmap arguments
+        :param output: Single value or list of values representing what output types should be stored.
+        :param engine: NSE object to execute after the scan
+        :param skip_processing: Set to true, it does not try to process Nmap output. Should be used when resumming.
         """
 
         # Popen raises FileNotFoundError in case the program does not exist
@@ -203,11 +210,14 @@ class NmapScanner:
         if len(exec_output):
             
             # If no output was set, parse directly from output
-            if not output:
+            if output is None:
                 try:
                     result = self._xml_parser.parse_plain(exec_output)
-                except XMLParsingError:
+                except XMLParsingError as e:
                     raise NmapScanError(exec_error.decode('utf8'))
+            
+                if skip_processing:
+                    return None
 
             # If output was set, parse it from XML output file.
             else:
@@ -259,7 +269,8 @@ class NmapScanner:
             return result
         
         else:
-            raise NmapScanError('No output given from Nmap')
+            if not skip_processing:
+                raise NmapScanError(exec_error.decode('utf8'))
 
 
     def _inner_scan(self, targets, random_nmap_base_filename, dry_run=False, ports=None, arguments=None, output=None, engine=None) -> NmapScanResult:
@@ -335,19 +346,51 @@ class NmapScanner:
             if output:
                 self._delete_output_files(random_nmap_output_filename)
 
-    def resume(self, xml_file_path: str, engine: Union[None,NSE] = None) -> NmapScanResult:
-        """ Resumes a scan, given an the XML file path 
-        
-        :param xml_file_path: Path to the system's XML file containing the scan progression
-        """
-
-        return self._inner_scan(shlex.split('--resume {}'.format(xml_file_path)), engine=engine)
-
     def raw(self, raw_arguments: str, engine: Union[None,NSE] = None) -> NmapScanResult:
         """ Executes a Nmap scan with a raw string containing all the command itself, without the 'nmap' keyword.
+
+        :param raw_arguments: String containing all nmap arguments. No --resume option nor output options should be placed here.
+        :param engine: NSE instance to use for this particular scan.
         """
 
         if raw_arguments.startswith('nmap '):
             raw_arguments = raw_arguments[5:]
         
-        return self._inner_scan(shlex.split(raw_arguments), engine=engine)
+        if any([x in raw_arguments for x in ('--resume', '-oA', '-oX', '-oN', '-oS', '-oG')]):
+            raise NmapScanError('Cannot specify --resume nor output options.')
+        
+        if self._nmap_bin:
+            nmap_bin = self._nmap_bin
+        else:
+            nmap_bin = 'nmap'
+        
+        raw_arguments = '{} {} -oX -'.format(nmap_bin, raw_arguments)
+        
+        return self._execute_nmap(shlex.split(raw_arguments), engine=engine)
+
+    def resume(self, xml_file: Union[pathlib.Path,str]) -> NmapScanResult:
+        """ Resumes an Nmap scan from an XML file.
+
+        :param xml_file: String representing the file's path
+        """
+
+        if isinstance(xml_file, pathlib.Path):
+            xml_file = xml_file.absolute
+
+        if self._nmap_bin:
+            nmap_bin = self._nmap_bin
+        else:
+            nmap_bin = 'nmap'
+
+        self._execute_nmap(shlex.split('{} --resume {}'.format(nmap_bin, xml_file)), skip_processing=True)
+
+        # If code reaches this point, no error have occured
+        return self._xml_parser.parse_file(xml_file)
+
+    def from_file(self, xml_file: Union[pathlib.Path,str]) -> NmapScanResult:
+        """ Imports an existing XML file and returns a scan result
+        
+        :param xml_file: String representing the file's path
+        """
+
+        return self._xml_parser.parse_file(xml_file)

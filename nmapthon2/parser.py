@@ -28,9 +28,12 @@ import pathlib
 
 import xml.etree.ElementTree as ET
 
+from typing import Union
+
 from .elements import Host, Port, Service, OperatingSystem, Hop
 from .results import NmapScanResult
 from .exceptions import XMLParsingError
+
 
 class XMLParser:
     """ Used to parse Nmap outputs into Python objects.
@@ -52,7 +55,7 @@ class XMLParser:
     def xml_tree(self):
         return self._xml_tree
 
-    def parse_file(self, file_path: str):
+    def parse_file(self, file_path: Union[pathlib.Path,str]):
         """ Parse a XML file in the system.
 
         :param file_path: Path from the file as a String or a Path object.
@@ -83,8 +86,8 @@ class XMLParser:
 
         try:
             self._xml_tree = ET.fromstring(text)
-        except ET.ParseError:
-            raise XMLParsingError('Cannot parse Nmap XML output') from None
+        except ET.ParseError as e:
+            raise XMLParsingError('Cannot parse Nmap XML output: {}'.format(e)) from None
 
         # Parse general scan information
         general_info = {}
