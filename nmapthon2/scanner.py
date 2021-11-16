@@ -33,6 +33,7 @@ import string
 import os
 
 from collections.abc import Iterable
+from typing import Union
 
 from nmapthon2.results import NmapScanResult
 
@@ -51,27 +52,23 @@ OUTPUT_RELATION = {
 
 
 class NmapScanner:
-    """ Represents a re-usable Nmap Network scanner that wraps the results into
+    """ Represents a reusable Nmap Network scanner that wraps the results into
     NmapScanResult objects.
 
-    It offers several methods to execute Nmap scans by different means, which are:
-    - Specify targets, ports and arguments in three different arguments
-    - Specify the raw Nmap command
-    - Resume an Nmap scan
+    It offers several methods to execute Nmap scans by different means, which are: 
+    1) Specify targets, ports and arguments in three different arguments. 2) Specify the raw Nmap command. 
+    3) Resume an Nmap scan
 
-    Nmap does not allow multi format output to STDOUT, so there this class may write to 
+    Nmap does not allow multi format output to STDOUT, so this class may write to 
     the operating system temporal folder to write all the output formats, process them, and 
     delete them.
 
-    :param nmap_bin: Path to the binary fail containing Nmap
-    :param engine: NSE object for all scans performed with this scanner.
-
-    Attributes:
-        _temp_folder: Temporal folder from the current OS
-        _xml_parser: Parser for Nmap scan results
+    :param nmap_bin: Path to the binary Nmap file.
+    :param engine: Default NSE object for all scans performed with this scanner.
     """
 
-    def __init__(self, nmap_bin=None, engine=None):
+    def __init__(self, nmap_bin: Union[None,str] = None, engine: Union[None,NSE] = None):
+
         self._temp_folder = tempfile.gettempdir()
         self._xml_parser = XMLParser()
 
@@ -188,6 +185,83 @@ class NmapScanner:
             except FileNotFoundError:
                 pass
 
+    def _execute_nmap(self, nmap_arguments, output: Union[None,bool] = None, engine: Union[None,NSE] = None):
+        """ Execute nmap and any post-processing with the given command line arguments
+        
+        :param nmap_arguments: List of Nmap arguments
+        """
+
+        # Popen raises FileNotFoundError in case the program does not exist
+        try:
+            nmap_process = subprocess.Popen(nmap_arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except FileNotFoundError:
+            raise NmapScanError('Nmap was not found on the system. Please install it before using Nmapthon2')
+
+        exec_output, exec_error = nmap_process.communicate()
+
+        # Parse output if any
+        if len(exec_output):
+            
+            # If no output was set, parse directly from output
+            if not output:
+                try:
+                    result = self._xml_parser.parse_plain(exec_output)
+                except XMLParsingError:
+                    raise NmapScanError(exec_error.decode('utf8'))
+
+            # If output was set, parse it from XML output file.
+            else:
+                try:
+                    result = self._xml_parser.parse_file(os.path.join(self._temp_folder, '{}.xml'.format(output)))
+                except XMLParsingError:
+                    raise NmapScanError(exec_error.decode('utf8'))
+                
+                outputs = { 'xml': None, 'normal': None, 'grep': None }
+                for i in output:
+                    with open(os.path.join(self._temp_folder, '{}{}'.format(output, OUTPUT_RELATION[i]))) as f:
+                        outputs[i] = f.read()
+                
+                result._normal_output = outputs['normal']
+                result._grep_output = outputs['grep']
+                result._xml_output = outputs['xml']
+
+            # If execution reaches this point, then Nmapthon2 has parsed the XML correctly, but they might be tolerant errors remaining
+            if len(exec_error):
+                result.tolerant_errors = exec_error.decode('utf8')
+
+            # Reference the coorect engine instance
+            if not engine:
+                engine = self._engine
+
+            # Apply the engine parser and scripts execution to the Host, Port and Service instances
+            if engine:
+                for host in result:
+                    # Apply any host script to the host object by reference
+                    engine._apply_host_scripts(host)
+                    for port in host:
+                        service = port.get_service()
+                        # If any parser to be used and there is a service with optential scripts, rock'em
+                        if len(engine._parsers) and service:
+                            for script_name, callback in engine._parsers.items():
+                                try:
+                                    service._scripts[script_name] = callback(service._scripts[script_name])
+                                except KeyError as e:
+                                    # If the KeyError is because of the script key not being in _scripts, then thats ok
+                                    # but if not, should raise the exception to let know the programmer.
+                                    if "'{}'".format(script_name) == str(e):
+                                        pass
+                                    else:
+                                        raise
+                        
+                        # If any port script, apply it
+                        engine._apply_port_scripts(host, port, service)
+
+            return result
+        
+        else:
+            raise NmapScanError('No output given from Nmap')
+
+
     def _inner_scan(self, targets, random_nmap_base_filename, dry_run=False, ports=None, arguments=None, output=None, engine=None) -> NmapScanResult:
         """ Execute an Nmap scan based on on a series of targets, and optional ports and
         arguments. For multi-output format storage the output argument can be set with 
@@ -237,85 +311,20 @@ class NmapScanner:
         if dry_run:
             return None
 
-        # Popen raises FileNotFoundError in case the program does not exist
-        try:
-            nmap_process = subprocess.Popen(nmap_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except FileNotFoundError:
-            raise NmapScanError('Nmap was not found on the system. Please install it before using Nmapthon2')
-
-        exec_output, exec_error = nmap_process.communicate()
-
-        # Parse output if any
-        if len(exec_output):
-            
-            # If no output was set, parse directly from output
-            if not output:
-                try:
-                    result = self._xml_parser.parse_plain(exec_output)
-                except XMLParsingError:
-                    raise NmapScanError(exec_error.decode('utf8'))
-
-            # If output was set, parse it from XML output file.
-            else:
-                try:
-                    result = self._xml_parser.parse_file(os.path.join(self._temp_folder, '{}.xml'.format(random_nmap_base_filename)))
-                except XMLParsingError:
-                    raise NmapScanError(exec_error.decode('utf8'))
-                
-                outputs = { 'xml': None, 'normal': None, 'grep': None }
-                for i in output:
-                    with open(os.path.join(self._temp_folder, '{}{}'.format(random_nmap_base_filename, OUTPUT_RELATION[i]))) as f:
-                        outputs[i] = f.read()
-                
-                result._normal_output = outputs['normal']
-                result._grep_output = outputs['grep']
-                result._xml_output = outputs['xml']
-
-            # If execution reaches this point, then Nmapthon2 has parsed the XML correctly, but they might be tolerant errors remaining
-            if len(exec_error):
-                result.tolerant_errors = exec_error.decode('utf8')
-
-            # Reference the coorect engine instance
-            if not engine:
-                engine = self._engine
-
-            # Apply the engine parser and scripts execution to the Host, Port and Service instances
-            if engine:
-                for host in result:
-                    # Apply any host script to the host object by reference
-                    engine._apply_host_scripts(host)
-                    for port in host:
-                        service = port.get_service()
-                        # If any parser to be used and there is a service with optential scripts, rock'em
-                        if len(engine._parsers) and service:
-                            for script_name, callback in engine._parsers.items():
-                                try:
-                                    service._scripts[script_name] = callback(service._scripts[script_name])
-                                except KeyError as e:
-                                    # If the KeyError is because of the script key not being in _scripts, then thats ok
-                                    # but if not, should raise the exception to let know the programmer.
-                                    if "'{}'".format(script_name) == str(e):
-                                        pass
-                                    else:
-                                        raise
-                        
-                        # If any port script, apply it
-                        engine._apply_port_scripts(host, port, service)
-
-            return result
-        
-        else:
-            raise NmapScanError('No output given from Nmap')
+        return self._execute_nmap(shlex.split(nmap_command), output=output, engine=engine)
     
-    def scan(self, targets, dry_run=False, ports=None, arguments=None, output=None, engine=None):
-        """ Wraps the main scanning function execution to ensure output file deletion in case output is given
+    def scan(self, targets: Union[str,Iterable], ports: Union[None,int,str,Iterable,_PortAbstraction] = None,  arguments: Union[None,str] = None, 
+             dry_run: bool = False, output: Union[None,str,Iterable] = None, engine: Union[None,NSE] = None) -> NmapScanResult:
+        """ Execute an Nmap scan based on on a series of targets, and optional ports and
+        arguments. For multi-output format storage the output argument can be set with 
+        the needed extersions or output parameters.
 
-        :param targets: List of targets in an Iterable or str.
-        :param dry_run: Set to True if you just want to test your parameters
-        :param ports: Ports in str or list format
-        :param arguments: Arguments to execute within the scan.
-        :param output: Tuple or list of output formats.
-        :param engine: NSEEngine object for custom script execution
+        :param targets: Targets to scan inside a str or Iterable type, like a list. Targets can also be specified through network ranges, partial ranges, network with CIDR mask and domains/hostnames.
+        :param ports: Ports to scan in as an int, str, iterable or custom functions. Ports can also be specified with ranges.
+        :param arguments: Arguments to execute Nmap in a single string
+        :param dry_run: Set to True if you just want to test your parameters, with this option the scan does NOT run.     
+        :param output: Iterable with desired output formats, that can be "xml", "normal" and/or "grep".
+        :param engine: NSE object for custom script execution. It overrides the NSE object specified on the instance for the current scan.
         """
 
         random_nmap_output_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
@@ -325,3 +334,20 @@ class NmapScanner:
         finally:
             if output:
                 self._delete_output_files(random_nmap_output_filename)
+
+    def resume(self, xml_file_path: str, engine: Union[None,NSE] = None) -> NmapScanResult:
+        """ Resumes a scan, given an the XML file path 
+        
+        :param xml_file_path: Path to the system's XML file containing the scan progression
+        """
+
+        return self._inner_scan(shlex.split('--resume {}'.format(xml_file_path)), engine=engine)
+
+    def raw(self, raw_arguments: str, engine: Union[None,NSE] = None) -> NmapScanResult:
+        """ Executes a Nmap scan with a raw string containing all the command itself, without the 'nmap' keyword.
+        """
+
+        if raw_arguments.startswith('nmap '):
+            raw_arguments = raw_arguments[5:]
+        
+        return self._inner_scan(shlex.split(raw_arguments), engine=engine)
