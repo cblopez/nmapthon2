@@ -5,7 +5,7 @@ If you specify something incorrectly or any special case occur (enumerated below
 
 * ``nmapthon2.exceptions.InvalidPortError``: If any of your ports is not correctly specified. For example, this could be an out-or-range port like 70000.
 * ``nmapthon2.exceptions.InvalidArgumentError``: If any of your arguments is invalid. Particularly, if you specify output options through anything that is not the ``output=`` argument, or use the ``--resume`` option instead of ``resume()``.
-* ``nmapthon2.exceptions.NmapScanError``: This error may raised on different situations:
+* ``nmapthon2.exceptions.NmapScanError``: This error may raise on different situations:
     * If you don't have Nmap installed on the system, or your Nmap binary path is incorrectly set.
     * If the Nmap tool raises an error. Like, for example, you use an invalid argument like '-sZZ'.
     * If no output from Nmap is given.

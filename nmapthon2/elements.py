@@ -25,6 +25,8 @@
 # pure Nmap XML output into Python objects.
 
 import datetime
+
+from typing import Any, Union, List, Tuple
 from .exceptions import MissingScript
 
 
@@ -57,7 +59,9 @@ class Host:
         self._index = -1
 
     @property
-    def state(self):
+    def state(self) -> Union[None,str]:
+        """ Host state
+        """
         return self._state
     
     @state.setter
@@ -67,7 +71,9 @@ class Host:
         self._state = v
 
     @property
-    def reason(self):
+    def reason(self) -> Union[None,str]:
+        """ Host's reason for a particular state
+        """
         return self._reason
 
     @reason.setter
@@ -77,7 +83,9 @@ class Host:
         self._reason = v
 
     @property
-    def reason_ttl(self):
+    def reason_ttl(self) -> Union[None,str]:
+        """ Reason TTL from state retrieval
+        """
         return self._reason_ttl
 
     @reason_ttl.setter
@@ -87,7 +95,9 @@ class Host:
         self._reason_ttl = int(v)
 
     @property
-    def start_time(self):
+    def start_time(self)  -> Union[None,datetime.datetime]:
+        """ Datetime from when the host started to be scanned
+        """
         return self._start_time
 
     @start_time.setter
@@ -99,7 +109,9 @@ class Host:
             self._start_time = None
 
     @property
-    def end_time(self):
+    def end_time(self) -> Union[None,datetime.datetime]:
+        """ Datetime from when the host stopped to be scanned
+        """
         return self._start_time
 
     @end_time.setter
@@ -111,14 +123,18 @@ class Host:
             self._end_time = None
 
     @property
-    def ip(self):
+    def ip(self) -> Union[None,str]:
+        """ Returns the host's Ipv4 if it has one associated, and Ipv6 in any other case
+        """
         if self._ipv4 is not None:
             return self._ipv4
         else:
             return self._ipv6
     
     @property
-    def ipv4(self):
+    def ipv4(self) -> Union[None,str]:
+        """ Returns the host's IPv4
+        """
         return self._ipv4
 
     @ipv4.setter
@@ -128,7 +144,9 @@ class Host:
         self._ipv4 = v
     
     @property
-    def ipv6(self):
+    def ipv6(self) -> Union[None,str]:
+        """ Returns the host's IPv6
+        """
         return self._ipv6
 
     @ipv6.setter
@@ -138,7 +156,9 @@ class Host:
         self._ipv6 = v
 
     @property
-    def fingerprint(self):
+    def fingerprint(self) -> Union[None,str]:
+        """ Return the host's OS fingerprint
+        """
         return self._fingerprint
     
     @fingerprint.setter
@@ -235,7 +255,7 @@ class Host:
 
         return [x for x in self._ports if x.protocol == 'tcp']
 
-    def hostnames(self, include_type: bool = False) -> list:
+    def hostnames(self, include_type: bool = False) -> Union[List[str],Tuple[str,str]]:
         """ Return all the host related hostnames.
         
         if include_type is set to True, the method will return a list of tuples where
@@ -251,7 +271,7 @@ class Host:
         else:
             return [(x, y) for x, y in self._hostnames.items()]
 
-    def os_matches(self):
+    def os_matches(self) -> list:
         """ Returns a list from all the OperatingSystem objects linked to the host
         
         :returns: List of operating systems
@@ -262,7 +282,7 @@ class Host:
     def most_accurate_os(self):
         """ Returns the OperatingSystem object with the highest accuracy
         
-        :returns: OperatingSystem or None if not OS where matches
+        :returns: OperatingSystem or None if there were no OS matches
         """
 
         if not len(self._oses):
@@ -278,9 +298,9 @@ class Host:
 
         return self._trace
 
-    def get_script(self, script_name):
+    def get_script(self, script_name: str):
         """ Returns a script from host's scripts or raises MissingScript if it does not exist
-        
+
         :param script_name: Name of the script
         :returns: Script output
         :raises: MissingScript if the given script is nor registered
@@ -290,6 +310,13 @@ class Host:
         else:
             raise MissingScript('No script output for the given script: {}'.format(script_name))
 
+    def all_scripts(self):
+        """ Returns a list of tuples containing the scripts names and outputs from all executed port scripts
+        
+        :returns: List of tuples
+        """
+
+        return [(x,y) for x,y in self._scripts.items()]
 
 class Port:
     """ A port element represents a unique port from an individual protocol related to a host.
@@ -310,7 +337,9 @@ class Port:
         self._service = None
 
     @property
-    def protocol(self):
+    def protocol(self) -> Union[None,str]:
+        """ Return the port transport protocol
+        """
         return self._protocol
 
     @protocol.setter
@@ -320,7 +349,9 @@ class Port:
         self._protocol = v
 
     @property
-    def number(self):
+    def number(self)  -> Union[None,int]:
+        """ Return the port number
+        """
         return self._number
     
     @number.setter
@@ -330,7 +361,8 @@ class Port:
         self._number = int(v)
 
     @property
-    def state(self):
+    def state(self) -> Union[None,str]:
+        """ Return the port state, that can be 'open', 'filtered' or 'closed'"""
         return self._state
 
     @state.setter
@@ -340,7 +372,9 @@ class Port:
         self._state = v
 
     @property
-    def reason(self):
+    def reason(self) -> Union[None,str]:
+        """ Return the reason for a particular port state
+        """
         return self._reason
 
     @reason.setter
@@ -350,7 +384,9 @@ class Port:
         self._reason = v
 
     @property
-    def reason_ttl(self):
+    def reason_ttl(self) -> Union[None,int]:
+        """ Return the reason's TTL
+        """
         return self._reason_ttl
 
     @reason_ttl.setter
@@ -419,7 +455,9 @@ class Service:
         self._scripts = {}
 
     @property
-    def name(self):
+    def name(self) -> Union[None,str]:
+        """ Return the service name
+        """
         return self._name
 
     @name.setter
@@ -429,7 +467,9 @@ class Service:
         self._name = v
 
     @property
-    def product(self):
+    def product(self) -> Union[None,str]:
+        """ Return the product being executed behind the service
+        """
         return self._product
 
     @product.setter
@@ -439,7 +479,9 @@ class Service:
         self._product = v
 
     @property
-    def version(self):
+    def version(self) -> Union[None,str]:
+        """ Return the product version
+        """
         return self._version
 
     @version.setter
@@ -449,7 +491,9 @@ class Service:
         self._version = v
     
     @property
-    def extrainfo(self):
+    def extrainfo(self) -> Union[None,str]:
+        """ Return trivial extra information about a particular service
+        """
         return self._extrainfo
 
     @extrainfo.setter
@@ -459,7 +503,9 @@ class Service:
         self._extrainfo = v
 
     @property
-    def tunnel(self):
+    def tunnel(self) -> Union[None,str]:
+        """ Return the tunneling method used by the service
+        """
         return self._tunnel
 
     @tunnel.setter
@@ -469,7 +515,9 @@ class Service:
         self._tunnel = v
     
     @property
-    def method(self):
+    def method(self) -> Union[None,str]:
+        """ Return the method used to identify the service
+        """
         return self._method
 
     @method.setter
@@ -479,7 +527,9 @@ class Service:
         self._method = v
     
     @property
-    def conf(self):
+    def conf(self) -> Union[None,float]:
+        """ Return the confidentiality from Nmap about the information reported for a particular service
+        """
         return self._conf
 
     @conf.setter
@@ -489,7 +539,9 @@ class Service:
         self._conf = float(v)
 
     @property
-    def cpes(self):
+    def cpes(self) -> Union[None,list]:
+        """ Return a list of all identified CPEs for a particular service
+        """
         return self._cpes
 
     @cpes.setter
@@ -499,7 +551,9 @@ class Service:
         self._cpes = v
 
     @property
-    def port(self):
+    def port(self) -> Union[None,int]:
+        """ Return the port number from where the service was identified
+        """
         return self._port
 
     @port.setter
@@ -520,12 +574,12 @@ class Service:
 
         self._scripts[script_name] = script_output
 
-    def get_script(self, script_name):
+    def get_script(self, script_name: str):
         """ Returns a port script associated with this service.
         
         :param script_name: Name of the script to return
         :returns: Script output
-        :raises MissingScript if the script_name is not on the instance's scripts
+        :raises: MissingScript if the script_name is not on the instance's scripts
         """
 
         if script_name in self._scripts:
@@ -533,6 +587,13 @@ class Service:
         else:
             raise MissingScript('No script output for the given script: {}'.format(script_name))
 
+    def all_scripts(self):
+        """ Returns a list of tuples containing the scripts names and outputs from the host
+        
+        :returns: List of tuples
+        """
+
+        return [(x,y) for x,y in self._scripts.items()]
 
 class OperatingSystemMatch:
     """ Represents a single match from an operating system.
@@ -540,7 +601,7 @@ class OperatingSystemMatch:
     It contains information from the type, vendor, family, generation and CPE. An operating
     system match is itself part of an OperatingSystem. When Nmap identifies the host's OS, it 
     outputs its generic information (name and accuracy), but the findings that made Nmap decide
-    the host's OS can are 1-N relation, so this class represents each of those N findings.
+    the host's OS are 1-N relation, so this class represents each of those N findings.
     """
 
     __slots__ = ('_type', '_vendor', '_family', '_generation', '_cpe')
@@ -549,10 +610,13 @@ class OperatingSystemMatch:
         self.type = kwargs.get('type', None)
         self.vendor = kwargs.get('vendor', None)
         self.family = kwargs.get('family', None)
+        self.generation = kwargs.get('generation', None)
         self.cpe = kwargs.get('cpe', None)
 
     @property
     def type(self):
+        """ Return the OS type
+        """
         return self._type
     
     @type.setter
@@ -564,6 +628,8 @@ class OperatingSystemMatch:
     
     @property
     def vendor(self):
+        """ Return the OS vendor
+        """
         return self._vendor
     
     @vendor.setter
@@ -575,6 +641,8 @@ class OperatingSystemMatch:
     
     @property
     def family(self):
+        """ Return the OS family
+        """
         return self._family
     
     @family.setter
@@ -583,20 +651,24 @@ class OperatingSystemMatch:
         assert v is None or isinstance(v, str), 'OperatingSystemMatch.family must be an str or None'
 
         self._family = v
-    
+
     @property
     def generation(self):
+        """ Return the OS generation
+        """
         return self._generation
     
     @generation.setter
     def generation(self, v):
 
-        assert v is None or isinstance(v, str), 'OperatingSystemMatch.generation must be an str or None'
+        assert v is None or isinstance(v, str), 'OperatingSystemMatch.generation must be None or str'
 
         self._generation = v
     
     @property
     def cpe(self):
+        """ Return the OS CPE
+        """
         return self._cpe
 
     @cpe.setter
@@ -610,9 +682,9 @@ class OperatingSystemMatch:
 class OperatingSystem:
     """ Represents a host's operating system scan
 
-    An operating system contains information from an OS match, which includes the OS name, the
-    accuracy and line. It also saves information from the family and generation, in case they exist,
-    plus any CPE matched with it.
+    An operating system contains information from an OS match, which includes the OS name and accuracy. 
+    An operating system will also have one or more OS matches, which will hold the information of why an operating 
+    system matched with the target.
     """
 
     __slots__ = ('_name', '_accuracy', '_matches')
@@ -627,7 +699,9 @@ class OperatingSystem:
             self._matches.append(OperatingSystemMatch(**match_info))
 
     @property
-    def name(self):
+    def name(self) -> Union[None,str]:
+        """ Return a string representing the operating system name and version
+        """
         return self._name
 
     @name.setter
@@ -637,7 +711,9 @@ class OperatingSystem:
         self._name = v
 
     @property
-    def accuracy(self):
+    def accuracy(self) -> Union[None,float]:
+        """ Return the accuracy between 0 and 100 related to the OS match
+        """
         return self._accuracy
 
     @accuracy.setter
@@ -646,7 +722,11 @@ class OperatingSystem:
 
         self._accuracy = float(v)
 
-    def get_matches(self):
+    def get_matches(self) -> List[OperatingSystemMatch]:
+        """ Return all single matches made by Nmap, which lead to the current overall Operating System matching
+        
+        :returns: List of objects representing each single match
+        """
         return self._matches
 
 
@@ -666,6 +746,8 @@ class Hop:
 
     @property
     def host(self):
+        """ Return the noce hostname
+        """
         return self._host
     
     @host.setter
@@ -676,6 +758,8 @@ class Hop:
     
     @property
     def ip(self):
+        """ Return the node IP address
+        """
         return self._ip
     
     @ip.setter
@@ -686,6 +770,8 @@ class Hop:
     
     @property
     def rtt(self):
+        """ Return the Round-Trip-Time
+        """
         return self._rtt
     
     @rtt.setter
@@ -696,6 +782,8 @@ class Hop:
     
     @property
     def ttl(self):
+        """ Return the Time-To-Live
+        """
         return self._ttl
     
     @ttl.setter

@@ -21,6 +21,7 @@
 # SOFTWARE.
 
 import datetime
+from typing import Union
 
 from . import utils
 from .elements import Host
@@ -42,7 +43,7 @@ class NmapScanResult:
     which are, indeed, binded to the host, and service-oriented, which are binded to
     the services.
 
-    Additionally, these hosts could also have Operating System results and PyNSEEngine
+    Additionally, these hosts could also have Operating System results and NSE
     results, which are unique from this library.
     """
 
@@ -55,11 +56,11 @@ class NmapScanResult:
     def __init__(self, **kwargs):
         self.scanner = kwargs.get('scanner', None)
         self.arguments = kwargs.get('arguments', None)
-        self.start_timestamp = kwargs.get('start', None)
-        self.start_datetime = kwargs.get('start', None)
+        self.start_timestamp = kwargs.get('start_timestamp', None)
+        self.start_datetime = kwargs.get('start_datetime', None)
         self.version = kwargs.get('version', None)
-        self.end_timestamp = kwargs.get('end', None)
-        self.end_datetime = kwargs.get('end', None)
+        self.end_timestamp = kwargs.get('end_timestamp', None)
+        self.end_datetime = kwargs.get('end_datetime', None)
         self.elapsed = kwargs.get('elapsed', None)
         self.summary = kwargs.get('summary', None)
         self.exit_status = kwargs.get('exit_status', None)
@@ -83,7 +84,9 @@ class NmapScanResult:
         self._index = -1
 
     @property
-    def scanner(self):
+    def scanner(self) -> Union[None,str]:
+        """ Nmap scanner information
+        """
         return self._scanner
     
     @scanner.setter
@@ -93,7 +96,9 @@ class NmapScanResult:
         self._scanner = v
     
     @property
-    def arguments(self):
+    def arguments(self) -> Union[None,str]:
+        """ Command-line arguments used
+        """
         return self._arguments
     
     @arguments.setter
@@ -103,7 +108,9 @@ class NmapScanResult:
         self._arguments = v
 
     @property
-    def start_timestamp(self):
+    def start_timestamp(self) -> Union[None,int]:
+        """ Start time timestamp
+        """
         return self._start_timestamp
     
     @start_timestamp.setter
@@ -116,19 +123,23 @@ class NmapScanResult:
             self._start_timestamp = v   
     
     @property
-    def start_datetime(self):
+    def start_datetime(self) -> Union[None,datetime.datetime]:
+        """ Start time datetime object
+        """
         return self._start_datetime
     
     @start_datetime.setter
     def start_datetime(self, v):
         
         if v is not None:
-            self._start_datetime = datetime.datetime.fromtimestamp(v)
+            self._start_datetime = datetime.datetime.fromtimestamp(int(v))
         else:
             self._start_datetime = None
 
     @property
-    def version(self):
+    def version(self) -> Union[None,str]:
+        """ Get Nmap version
+        """
         return self._version
     
     @version.setter
@@ -138,7 +149,9 @@ class NmapScanResult:
         self._version = v
 
     @property
-    def end_timestamp(self):
+    def end_timestamp(self) -> Union[None,int]:
+        """ End time timestamp
+        """
         return self._end_timestamp
     
     @end_timestamp.setter
@@ -151,19 +164,22 @@ class NmapScanResult:
             self._end_timestamp = v
     
     @property
-    def end_datetime(self):
+    def end_datetime(self) -> Union[None,datetime.datetime]:
+        """ End time datetime object
+        """
         return self._end_datetime
     
     @end_datetime.setter
     def end_datetime(self, v):
-        
         if v is not None:
-            self._end_datetime = datetime.datetime.fromtimestamp(v)
+            self._end_datetime = datetime.datetime.fromtimestamp(int(v))
         else:
             self._end_datetime = None
 
     @property
-    def elapsed(self):
+    def elapsed(self) -> Union[None,float]:
+        """ Elapsed time
+        """
         return self._elapsed
     
     @elapsed.setter
@@ -175,7 +191,9 @@ class NmapScanResult:
             pass
     
     @property
-    def summary(self):
+    def summary(self) -> Union[None,str]:
+        """Scan summary
+        """
         return self._summary
     
     @summary.setter
@@ -185,7 +203,9 @@ class NmapScanResult:
         self._summary = v
     
     @property
-    def exit_status(self):
+    def exit_status(self) -> Union[None,str]:
+        """ Nmap exit status
+        """
         return self._exit_status
     
     @exit_status.setter
@@ -195,19 +215,27 @@ class NmapScanResult:
         self._exit_status = v
 
     @property
-    def hosts_up(self):
+    def hosts_up(self) -> Union[None,int]:
+        """ Number of hosts up
+        """
         return self._hosts_up
     
     @property
-    def hosts_down(self):
+    def hosts_down(self) -> Union[None,int]:
+        """ Number of hosts down
+        """
         return self._hosts_down
     
     @property
-    def num_hosts(self):
+    def num_hosts(self) -> Union[None,int]:
+        """ Total number of hosts
+        """
         return self._num_hosts
 
     @property
-    def scan_info(self):
+    def scan_info(self) -> Union[None,str]:
+        """ Scan information
+        """
         return self._scan_info
 
     @scan_info.setter
@@ -220,7 +248,9 @@ class NmapScanResult:
             self._scan_info = v
 
     @property
-    def verbose(self):
+    def verbose(self) -> Union[None,int]:
+        """ Verbosity level
+        """
         return self._verbose
 
     @verbose.setter
@@ -233,7 +263,9 @@ class NmapScanResult:
             self._verbose = None
 
     @property
-    def debug(self):
+    def debug(self) -> Union[None,int]:
+        """ Debugging level
+        """
         return self._debug
 
     @debug.setter
@@ -246,7 +278,9 @@ class NmapScanResult:
             self._debug = None
 
     @property
-    def tolerant_errors(self):
+    def tolerant_errors(self) -> Union[None,str]:
+        """ String containing tolerant errors
+        """
         return self._tolerant_errors
     
     @tolerant_errors.setter

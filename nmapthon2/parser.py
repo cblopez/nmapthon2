@@ -112,7 +112,7 @@ class XMLParser:
                 general_info['elapsed'] = value
             elif attribute == 'summary':
                 general_info['summary'] = value
-            elif attribute == 'exit_status':
+            elif attribute == 'exit':
                 general_info['exit_status'] = value
         
         # Loop through all elements on <hosts> element
@@ -173,7 +173,7 @@ class XMLParser:
                     host_info['ipv6'] = addr.attrib['addr']
             
             if 'ipv4' not in host_info and 'ipv6' not in host_info:
-                raise XMLParsingError('Cannot parse host that no IPv4 nor IPv6 address')
+                raise XMLParsingError('Cannot parse host that has no IPv4 nor IPv6 address')
 
             # Parse hostnames
             hostnames_element = host.find('hostnames')
@@ -268,11 +268,17 @@ class XMLParser:
                     matches = []
                     for os_match_element in os_element.findall('osclass'):
                         match_info = {}
-                        for attrib_name in ('type', 'vendor', 'family', 'generation'):
+                        for attrib_name in ('type', 'vendor', 'osfamily', 'osgen'):
+                            if attrib_name == 'osfamily':
+                                target_param = 'family'
+                            elif attrib_name == 'osgen':
+                                target_param = 'generation'
+                            else:
+                                target_param = attrib_name
                             try:
-                                match_info[attrib_name] = os_match_element.attrib[attrib_name]
+                                match_info[target_param] = os_match_element.attrib[attrib_name]
                             except KeyError:
-                                match_info[attrib_name] = None
+                                match_info[target_param] = None
                         
                         match_info['cpe'] = None
 

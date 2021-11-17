@@ -312,7 +312,7 @@ class NSE(metaclass=NSEMeta):
         """ A decorator to register the given function into the NSE as a host script
 
         :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
-        :param targets: Targets to be affected by the function
+        :param targets: Targets to be affected by the function. Asterik means all of them, but they can be specified the same way as you specify targets in the scan() method, including network ranges, partial ranges, etc...
         :returns: Function decorator
         """
 

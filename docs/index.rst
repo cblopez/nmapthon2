@@ -15,3 +15,5 @@ Welcome to Nmapthon2's documentation!
    nmapthon_comparison
    creating_scanner
    launch_scan
+   scan_results
+   nse
