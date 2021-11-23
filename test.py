@@ -1,29 +1,43 @@
 from nmapthon2.scanner import NmapScanner
 from nmapthon2.exceptions import MissingScript
 from nmapthon2.engine import NSE
-from nmapthon2.utils import dispatch_network
 
-import socket
+import requests
 
 nse = NSE()
 
-@nse.host_script('socket-hostname', targets='*')
-def get_hostname(host):
+# This applies to all scripts
+@nse.global_parser
+def change_html_chars(output):
+    return output.replace('&lt;', '<').replace('&gt;', '>')
 
-    return socket.gethostbyaddr(host.ipv4)[0]
-
-@nse.host_script('private-address', targets=['google.com'])
-def is_private_address(host):
-    return host.ipv4 in dispatch_network('192.168.0.0/24')
+# This only applies to the built-in http-enum.nse script
+# It transforms the script output in a list of found directories.
+# If you do this type of data transformation, remember it wont be a string anymore!s
+@nse.parser('http-enum')
+def get_directories_list(output):
+    data = []
+    for line in output.splitlines():
+        split_line = line.strip().split(':')
+        if len(split_line) > 1:
+            data.append(split_line[0])
+    
+    return data
 
 scanner = NmapScanner(engine=nse)
 
-result = scanner.scan('localhost google.com', ports='1-500')
-
+result = scanner.scan('localhost', ports=8000, arguments='-sV -sS -T4 --script http-title,http-enum')
 
 for host in result:
     print(f'Host: {host.ip}')
-    
-    for name, output in host.all_scripts():
 
-        print(f'\t{name} - {output}')
+    for hs_name, hs_output in host.all_scripts():
+        print(f'\t{hs_name} - {hs_output}')
+    
+    print()
+    for port in host:
+        print(f'\tPort {port.number}/{port.protocol} ({port.state}):')
+
+        if port.service is not None:
+            for name, output in port.service.all_scripts():
+                print(f'\t\t{name} - {output}')
