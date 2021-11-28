@@ -35,12 +35,19 @@ class _DelayedParserAbstraction:
         self.script_name = script_name
         self.func = func
 
-class NSEMeta(type):
 
+class NSEMeta(type):
+    """ Metaclass to represent the behaivor for registering class methods as NSE scripts for Object-Oriented engines.
+
+    It defines a set to store the functions for dalayed registry, which means, methods that will have to be added after instatiating the object
+    subclassing NSE. It marks them with a flag (a protected attribute) and it propagates this behaviour over all the subclass tree, meaning that 
+    it supports multiple inheritance and multi-level inheritance, which will merge all registered methods from each of the classes that are part 
+    of the hierarchy.
+    """
     def __init__(cls, name, bases, attrs):
 
         _delayed_registry_set = set()
-        for name, method in attrs.items():
+        for _, method in attrs.items():
             if isinstance(method, property):
                 method = method.fget
             if hasattr(method, '_delayed_registry'):
@@ -55,12 +62,13 @@ class NSEMeta(type):
                 pass
             return registries
         
+        # This is used to propagate through the hierarchy
         cls._delayed_registry = _delayed_registry
 
 
 def host_script(name: str, targets: Union[str,Iterable] = '*'):
-    """ Decorator to be used from a class inheriting NSE, that automatically adds the decorated function as 
-        an NSE host script with the function name in snake case separated by dashes.
+    """ Decorator to be used from a class inheriting NSE, that automatically adds the decorated method as 
+        an NSE host script with the specified name.
         
         :param targets: Targets that may be affected by the script
         :returns: Funciton decorator
@@ -89,12 +97,13 @@ def parser(script_name: str):
 
 class _NSEHostScript:
     """ An individual Python function that is executed as if it were an Nmap NSE host script.
-    The script is represented by a name, a function to execute per alive host and the arguments to the function.
+    The script is represented by a name and a function to execute per alive host.
+
         :param name: Name of the function (PyNSEScript name)
         :param func: Function to execute
-        :param args: Arguments for the function
-        :param delayed: Delayed lets the NSE object know that the script has been registered through a class, meaning 
-                        that I will need to register after instantiation (delayed registry).
+        :param targets: Filter to specify which targets should be affected by the function.
+        :param delayed: Delayed allows the NSE object know that the script has been registered through a class, meaning 
+                        that it will need to register after instantiation (delayed registry).
     """
 
     __slots__ = ('_name', '_func', '_targets', '_delayed')
@@ -153,12 +162,12 @@ class _NSEHostScript:
         self._delayed = v
 
 class _NSEPortScript(_NSEHostScript):
-    """ Represents an NSE port script
+    """ Represents an NSE port script.
     As well as those scripts, it can have any number of arguments and it can assign output to the NmapScanResult object.
     The functions are only executed if the port or host (depending on the function type) is open,
     but the user can also specify which of the three port states ('open', 'filtered'or 'closed') are valid for the
     function to execute.
-        :param ports: Port or ports to target. A None value means it is a host script
+        :param ports: Port or ports to target.
         :param proto: Transport layer protocol ('tcp', 'udp' or '*' for both)
         :param states: List of states valid for function execution
     """
@@ -187,14 +196,11 @@ class _NSEPortScript(_NSEHostScript):
     def ports(self, v):
         if v is None:
             self._ports = v
-        elif isinstance(v, str):
-            self._ports = ports_to_list(v)
-
-        elif isinstance(v, list):
-            self._ports = extend_port_list(v)
-
-        elif isinstance(v, int):
+        elif isinstance(v, (int, str)):
             self._ports = ports_to_list(str(v))
+
+        elif isinstance(v, Iterable):
+            self._ports = extend_port_list(v)
 
         else:
             raise EngineError('Invalid ports data type: {}'.format(type(v)))
@@ -206,13 +212,13 @@ class _NSEPortScript(_NSEHostScript):
         elif isinstance(v, str) and v.lower() in ['tcp', 'udp', '*']:
             self._proto = v.lower()
         else:
-            raise EngineError('Invalid proto value: {}'.format(v))
+            raise EngineError('Invalid proto value: {} ({})'.format(v, type(v)))
 
     @states.setter
     def states(self, v):
 
         if v is None:
-            self._states = v
+            self._states = ['open']
 
         elif not all(x in ['open', 'closed', 'filtered'] for x in v):
             raise EngineError('PyNSEScript states must be "open", "closed" or "filtered".')
@@ -252,8 +258,8 @@ class NSE(metaclass=NSEMeta):
             else:
                 raise EngineError('Could not add NSE script to engine. Unkown type: {}'.format(type(i)))
 
-    def add_port_script(self, func: Callable, name: str, targets: Union[str,Iterable], port: Union[int,str,Iterable], 
-                        proto: Union[None,str,Iterable], states: Union[None,Iterable]):
+    def add_port_script(self, func: Callable, name: str, port: Union[int,str,Iterable], targets: Union[str,Iterable] = '*', 
+                        proto: Union[None,str,Iterable] = '*', states: Union[None,Iterable] = None):
         """ Register a given function to execute on a given port.
 
         :param func: Function to register
@@ -264,12 +270,12 @@ class NSE(metaclass=NSEMeta):
         """
         self._port_scripts.append(_NSEPortScript(name, func, targets, port, proto, states))
 
-    def add_host_script(self, func: Callable, name: str, targets: Union[str,Iterable]):
+    def add_host_script(self, func: Callable, name: str, targets: Union[str,Iterable] = '*'):
         """ Register a given function to execute on a hosts
 
-        :param func: Function to register
-        :param name: Name of the function
-        :param args: Function arguments
+        :param func: Callback function to register
+        :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
+        :param targets: Targets to be affected by the function. Asterik means all of them, but they can be specified the same way as you specify targets in the scan() method, including network ranges, partial ranges, etc...
         """
         self._host_scripts.append(_NSEHostScript(name, func, targets))
 
@@ -280,11 +286,12 @@ class NSE(metaclass=NSEMeta):
         """
         self._global_parsers.append(callback)
 
-    def add_parser(self, script_name: str, callback: Callable):
+    def add_parser(self, callback: Callable, script_name: str):
         """ Adds a function to the parsers for a given script name
         
         :param script_name: Name of the script to parse
         :param callback: Function to execute. Must accept one parameter, which will be the script output.
+        :raises EngineError: Whenever the engine already has a registered function for the given script name.
         """
         if script_name in self._parsers:
             raise EngineError('"{}" already has a parsing function'.format(script_name))
@@ -299,11 +306,10 @@ class NSE(metaclass=NSEMeta):
         :param targets: Targets to be affected by the function
         :param proto: Protocol of the port to be affected by the function
         :param states: List of states valid for function execution
-        :param args: Function arguments
         """
 
         def decorator(f):
-            self.add_port_script(f, name, targets, port, proto, states or ['open'])
+            self.add_port_script(f, name, port, targets, proto, states or ['open'])
             return f
 
         return decorator

@@ -1,5 +1,5 @@
 from nmapthon2.scanner import NmapScanner
-from nmapthon2.exceptions import MissingScript
+from nmapthon2.ports import top_ports
 from nmapthon2.engine import NSE
 from nmapthon2.utils import dispatch_network
 
@@ -7,23 +7,25 @@ import socket
 
 nse = NSE()
 
-@nse.host_script('socket-hostname', targets='*')
-def get_hostname(host):
+@nse.port_script('is-nginx', [80,443,8080], proto='tcp')
+def is_nginx(host, port, _):
+    s = socket.socket()
+    s.connect((host.ipv4, port.number))
+    banner = s.recv(1024)
+    return 'nginx' in banner.decode('utf8')
 
-    return socket.gethostbyaddr(host.ipv4)[0]
+@nse.port_script('vsftpd-backdoor', 21, proto='tcp', states=['open', 'filtered'])
+def check_vsftpd_backdoor(host, port, service):
+    return service.product == 'vsftpd' and service.version == '2.3.4' 
 
-@nse.host_script('private-address', targets=['google.com'])
-def is_private_address(host):
-    return host.ipv4 in dispatch_network('192.168.0.0/24')
+scanner = NmapScanner()
 
-scanner = NmapScanner(engine=nse)
-
-result = scanner.scan('localhost google.com', ports='1-500')
-
+result = scanner.scan('localhost google.com', ports=top_ports(100), engine=nse)
 
 for host in result:
     print(f'Host: {host.ip}')
-    
-    for name, output in host.all_scripts():
-
-        print(f'\t{name} - {output}')
+    for port in host:
+        if len(port.all_scripts()):
+            print(f'\tPort: {port.number}')
+            for name, output in port.all_scripts():
+                print(f'\t\t{name}: {output}')
