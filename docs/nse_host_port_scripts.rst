@@ -37,7 +37,7 @@ you will not learn how to register any function into the ``NSE``, but the requir
         if True:
             raise StopExecution # This script would not appear in the results
 
-* **Parsers** can be for individual scripts or every single script (usefull for decoding, deleting/substituding characters...), but both type of parsers are defined the same way. Parser functions must recieve one unique parameter, which is the NSE script output and must return the parsed output.
+* **Parsers** can be for individual scripts or globally registered (usefull for decoding, deleting/substituding characters...), but both type of parsers are defined the same way. Parser functions must recieve one unique parameter, which is the NSE script output and must **return** the parsed output.
 
 .. code-block:: python
 

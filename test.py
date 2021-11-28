@@ -1,9 +1,8 @@
 from nmapthon2.scanner import NmapScanner
 from nmapthon2.ports import top_ports
 from nmapthon2.engine import NSE
-from nmapthon2.utils import dispatch_network
 
-import socket
+import requests
 
 nse = NSE()
 

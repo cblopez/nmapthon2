@@ -194,6 +194,7 @@ class _NSEPortScript(_NSEHostScript):
 
     @ports.setter
     def ports(self, v):
+        
         if v is None:
             self._ports = v
         elif isinstance(v, (int, str)):
@@ -302,10 +303,11 @@ class NSE(metaclass=NSEMeta):
         """ A decorator to register the given function into the PyNSEEngine as a port script.
 
         :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
-        :param port: Port(s) to be affected by the function
-        :param targets: Targets to be affected by the function
-        :param proto: Protocol of the port to be affected by the function
-        :param states: List of states valid for function execution
+        :param port: Port(s) to be affected by the function. You can specify, '*' to target all ports. You can also set them the
+                    same way as ports in the nmapthon2.scanner.NmapScanner.scan() method, but without the tcp(), udp() or top_ports() functions.
+        :param targets: Targets to be affected by the function. Specify them the same way as you specify scan targets. '*' would be all of them.
+        :param proto: Protocol of the port to be affected by the function. Default is '*', which applies to any protocol, but it can be either 'tcp' or 'udp'.
+        :param states: List of states valid for function execution, can be a list with the following values in it: 'open', 'filtered' and/or 'closed'. By default, port scripts only target open ports
         """
 
         def decorator(f):
@@ -318,7 +320,7 @@ class NSE(metaclass=NSEMeta):
         """ A decorator to register the given function into the NSE as a host script
 
         :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
-        :param targets: Targets to be affected by the function. Asterik means all of them, but they can be specified the same way as you specify targets in the scan() method, including network ranges, partial ranges, etc...
+        :param targets: Targets to be affected by the function. Specify them the same way as you specify scan targets. '*' would be all of them.
         :returns: Function decorator
         """
 
@@ -328,13 +330,14 @@ class NSE(metaclass=NSEMeta):
 
         return decorator
 
-    def global_parser(self):
+    @staticmethod
+    def global_parser(f):
         """ A decorator to register the given function as a NSE global parser
         
         :returns: Function docorator
         """
 
-        def decorator(f):
+        def decorator():
             self.add_global_parser(f)
             return f
         
@@ -348,7 +351,7 @@ class NSE(metaclass=NSEMeta):
         """
 
         def decorator(f):
-            self.global_parser(f)
+            self.add_parser(name, f)
             return f
         
         return decorator
@@ -382,7 +385,7 @@ class NSE(metaclass=NSEMeta):
         
         for i in self._port_scripts:
             if i.targets == '*' or host.ipv4 in i.targets or any(x for x in host.hostnames() if x in i.targets):
-                if (i.proto == '*' or port.protocol == i.proto) and port.number in i.ports and port.state in i.states:
+                if (i.proto == '*' or port.protocol == i.proto) and (i.ports == '*' or port.number in i.ports) and port.state in i.states:
                     try:
                         if i.delayed:
                             service._add_script(i.name, getattr(self, i.func.__name__)(host, port, service))
