@@ -68,7 +68,7 @@ Now the Nmapthon2 file:
 
     scanner = nm2.NmapScanner()
 
-    result = scanner.scan(['localhost', '192.168.0.0/24'], arguments='-sC -T4 -n')
+    result = scanner.scan(['localhost', '192.168.0.0/24'], arguments='-sC -T4 -n', engine=engine)
     # All the functions registered into the engine will be executed
     # Continue as normal
     ...

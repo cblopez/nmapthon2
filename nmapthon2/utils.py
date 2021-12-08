@@ -201,7 +201,10 @@ def valid_ip(ip_address: str) -> bool:
     """
 
     # Return True if matches, False if not.
-    return _SINGLE_IP_ADDRESS_REGEX.fullmatch(ip_address)
+    if _SINGLE_IP_ADDRESS_REGEX.fullmatch(ip_address):
+        return True
+    else:
+        return False
 
 
 def ip_range(starting_ip: str, ending_ip: str) -> list:
@@ -272,7 +275,12 @@ def partial_ip_range(ip_addr: str) -> list:
             partial_ranges.append([i])
     
     # Combine them all
-    ips.append('.'.join([str(x) for x in partial_ranges]))
+    # TODO: Beautify this
+    for one in partial_ranges[0]:
+        for two in partial_ranges[1]:
+            for three in partial_ranges[2]:
+                for four in partial_ranges[3]:
+                    ips.append('{}.{}.{}.{}'.format(one, two, three, four))
     
     return ips
 
@@ -338,7 +346,7 @@ def targets_to_list(targets: str) -> list:
 
         Example:
             targets                             return
-            '192.168.1.1, 192.168.1.2'          ['192.168.1.1', '192.168.1.2']
+            '192.168.1.1 192.168.1.2'          ['192.168.1.1', '192.168.1.2']
             '192.168.1.1-192.168.1.3'           ['192.168.1.1', '192.168.1.2', '192.168.1.3']
             '192.168.1.0/30'                    ['192.168.1.1', '192.168.1.2']
 
@@ -348,11 +356,11 @@ def targets_to_list(targets: str) -> list:
 
     # List to return
     target_list = []
-    # Delete blank spaces
-    targets_string = targets.replace(' ', '')
 
     # For each block split by a comma.
-    for split_target in targets_string.split(','):
+    for split_target in targets.split(' '):
+        if not split_target:
+            continue
         # If range indicator
         if _IP_RANGE_REGEX.fullmatch(split_target):
             # Split range
@@ -387,7 +395,5 @@ def targets_to_list(targets: str) -> list:
             target_list.append(split_target)
 
     # Return the sorted list. List is sorted by IP address. Ej: 192.168.1.12 > 192.168.1.9
-    return sorted(list(set(target_list)),
-                  key=lambda x: x if not _SINGLE_IP_ADDRESS_REGEX.fullmatch(x) else
-                  int(''.join(["%02X" % int(i) for i in x.split('.')]), 16))
+    return list(set(target_list))
 

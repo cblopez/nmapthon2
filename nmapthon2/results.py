@@ -410,7 +410,8 @@ class NmapScanResult:
     def get_output(self, output_type):
         """ Returns, if any, the specified output format from 'xml', 'grep' or 'normal'.
 
-        :returns: String representing the Nmap output from the specified output_type
+        :returns: String representing the Nmap output from the specified output_type, or None if there is no one
+        :raises ValueError: If the output_type has an invalid value.
         """
 
         if output_type not in OUTPUT_FORMATS:

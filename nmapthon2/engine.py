@@ -29,20 +29,26 @@ from .exceptions import EngineError, StopExecution
 from .elements import Host, Port, Service
 
 
-class _DelayedParserAbstraction:
-
-    def __init__(self, script_name, func) -> None:
-        self.script_name = script_name
+class _DelayedGlobalParserAbstraction:
+    """ Represents a global parser that would be registered through OOP
+    """
+    def __init__(self, func) -> None:
         self.func = func
+
+
+class _DelayedParserAbstraction(_DelayedGlobalParserAbstraction):
+    """ Represents a parser that would be registered through OOP
+    """
+    def __init__(self, script_name, func) -> None:
+        super().__init__(func)
+        self.script_name = script_name
 
 
 class NSEMeta(type):
     """ Metaclass to represent the behaivor for registering class methods as NSE scripts for Object-Oriented engines.
 
     It defines a set to store the functions for dalayed registry, which means, methods that will have to be added after instatiating the object
-    subclassing NSE. It marks them with a flag (a protected attribute) and it propagates this behaviour over all the subclass tree, meaning that 
-    it supports multiple inheritance and multi-level inheritance, which will merge all registered methods from each of the classes that are part 
-    of the hierarchy.
+    subclassing NSE. It marks them with a flag (a protected attribute) for further registering them depending on the instance type.
     """
     def __init__(cls, name, bases, attrs):
 
@@ -70,7 +76,8 @@ def host_script(name: str, targets: Union[str,Iterable] = '*'):
     """ Decorator to be used from a class inheriting NSE, that automatically adds the decorated method as 
         an NSE host script with the specified name.
         
-        :param targets: Targets that may be affected by the script
+        :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
+        :param targets: Targets to be affected by the function. Specify them the same way as you specify scan targets. '*' would be all of them.
         :returns: Funciton decorator
     """
     def inner(f):
@@ -81,7 +88,15 @@ def host_script(name: str, targets: Union[str,Iterable] = '*'):
 
 def port_script(name: str, port: Union[int,str,Iterable], targets: Union[str,Iterable] = '*', 
                 proto: str = '*', states: Union[None,Iterable] = None):
-    
+    """ Decorator to be used from a class inheriting NSE, that registers the given function into the NSE as a port script.
+
+        :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
+        :param port: Port(s) to be affected by the function. You can specify, '*' to target all ports. You can also set them the
+                    same way as ports in the nmapthon2.scanner.NmapScanner.scan() method, but without the tcp(), udp() or top_ports() functions.
+        :param targets: Targets to be affected by the function. Specify them the same way as you specify scan targets. '*' would be all of them.
+        :param proto: Protocol of the port to be affected by the function. Default is '*', which applies to any protocol, but it can be either 'tcp' or 'udp'.
+        :param states: List of states valid for function execution, can be a list with the following values in it: 'open', 'filtered' and/or 'closed'. By default, port scripts only target open ports
+    """
     def inner(f):
         f._delayed_registry = _NSEPortScript(name, f, targets, port, proto, states)
         return f
@@ -89,11 +104,26 @@ def port_script(name: str, port: Union[int,str,Iterable], targets: Union[str,Ite
 
 
 def parser(script_name: str):
-
+    """ Decorator to be used from a class inheriting NSE, that registers the given function as a NSE parser for a given script
+        
+        :param name: Script name
+        :returns: Function decorator
+    """
     def inner(f):
         f._delayed_registry = _DelayedParserAbstraction(script_name, f)
         return f
     return inner
+
+def global_parser(f):
+    """Decorator to be used from a class inheriting NSE, that registers the given function as a NSE global parser
+        
+        :returns: Function docorator
+    """
+    def inner():
+        f._delayed_registry = _DelayedGlobalParserAbstraction(f)
+        return f
+    return inner
+
 
 class _NSEHostScript:
     """ An individual Python function that is executed as if it were an Nmap NSE host script.
@@ -256,6 +286,8 @@ class NSE(metaclass=NSEMeta):
                 self._host_scripts.append(i)
             elif isinstance(i, _DelayedParserAbstraction):
                 self._parsers[i.script_name] = getattr(self, i.func.__name__)
+            elif isinstance(i, _DelayedGlobalParserAbstraction):
+                self._global_parsers.append(getattr(self, i.func.__name__))
             else:
                 raise EngineError('Could not add NSE script to engine. Unkown type: {}'.format(type(i)))
 
@@ -264,10 +296,13 @@ class NSE(metaclass=NSEMeta):
         """ Register a given function to execute on a given port.
 
         :param func: Function to register
-        :param name: Name of the function
-        :param port: Port(s) affected
-        :param proto: Protocol for the ports
-        :param states: Valid port states
+        :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
+        :param port: Port(s) to be affected by the function. You can specify, '*' to target all ports. You can also set them the
+                    same way as ports in the nmapthon2.scanner.NmapScanner.scan() method, but without the tcp(), udp() or top_ports() functions.
+        :param targets: Targets to be affected by the function. Specify them the same way as you specify scan targets. '*' would be all of them.
+        :param proto: Protocol of the port to be affected by the function. Default is '*', which applies to any protocol, but it can be either 'tcp' or 'udp'.
+        :param states: List of states valid for function execution, can be a list with the following values in it: 'open', 'filtered' and/or 'closed'. By default, port scripts only target open ports
+    
         """
         self._port_scripts.append(_NSEPortScript(name, func, targets, port, proto, states))
 
@@ -300,7 +335,7 @@ class NSE(metaclass=NSEMeta):
 
     def port_script(self, name: str, port: Union[int,str,Iterable], targets: Union[str,Iterable] = '*', 
                     proto: str = '*', states: Union[None,Iterable] = None):
-        """ A decorator to register the given function into the PyNSEEngine as a port script.
+        """ A decorator to register the given function into the NSE as a port script.
 
         :param name: Name of the function/script to be used later on to retrieve the information gathered by it.
         :param port: Port(s) to be affected by the function. You can specify, '*' to target all ports. You can also set them the

@@ -88,7 +88,7 @@ class XMLParser:
             self._xml_tree = ET.fromstring(text)
         except ET.ParseError as e:
             raise XMLParsingError('Cannot parse Nmap XML output: {}'.format(e)) from None
-
+        
         # Parse general scan information
         general_info = {}
         # Loop through every attribute from the root element

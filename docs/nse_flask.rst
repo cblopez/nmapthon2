@@ -151,7 +151,7 @@ parsers are applied to all of them. You can use the ``parser(script_name)`` and 
 
     # This only applies to the built-in http-enum.nse script
     # It transforms the script output to a list of found directories.
-    # If you do this type of data transformation, remember it wont be a string anymore!s
+    # If you do this type of data transformation, remember it wont be a string anymore!
     @nse.parser('http-enum')
     def get_directories_list(output):
         data = []

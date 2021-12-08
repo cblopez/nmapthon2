@@ -8,6 +8,7 @@ NSE
     nse_host_port_scripts
     nse_flask
     nse_callback
+    nse_oop
 
 One of the greatest things of Nmapthon2 is its built-in custom ``NSE``. This object allows programmers to extend the already existing Nmap's NSE with Python functions and methods implementing their own
 security checks. Addtionally to custom Python scripts, this object allows us to register parsers, which are functions that automatically parse Nmap's NSE scripts output.

@@ -33,7 +33,7 @@ import string
 import os
 
 from collections.abc import Iterable
-from typing import Union
+from typing import Coroutine, Tuple, Union
 
 from nmapthon2.results import NmapScanResult
 
@@ -78,7 +78,21 @@ class NmapScanner:
         self._engine = engine
 
     @staticmethod
-    def _parse_command_line_arguments(arguments_string):
+    def _split_command(command: str) -> Union[list,str]:
+        """ Split a command into a list of strings in UNIX systems, but leave the command as a single string for Windows systems.
+        
+        Commands including paths with Windows delimeters (\) will be missprocessed, causing errors in Windows systems. Nonetheless, 
+        Windows systems do not require an array of arguments like UNIX, so passing the raw command is completely fine.
+
+        :param command: Command to process
+        """
+
+        if os.name == 'nt':
+            return command
+        else:
+            return shlex.split(command)
+
+    def _parse_command_line_arguments(self, arguments_string):
         """ Parse the command line arguments from a given arguments string.
 
         Arguments have a few restrictions, which are: 1) the "nmap" command itself
@@ -92,7 +106,7 @@ class NmapScanner:
         """
 
         # Split into a list of commands
-        split_arguments = shlex.split(arguments_string)
+        split_arguments = self._split_command(arguments_string)
 
         if '--resume' in split_arguments:
             raise NmapScanError('Cannot use --resume as a Nmap argument. Use resume() instead')
@@ -101,7 +115,10 @@ class NmapScanner:
             '-oA' in split_arguments or '-oG' in split_arguments or '-oS' in split_arguments:
             raise NmapScanError('Cannot especify an output argument. Use the "output" kwarg instead.')
 
-        return ' '.join(split_arguments)
+        if isinstance(split_arguments, list):
+            return ' '.join(split_arguments)
+        else:
+            return split_arguments
     
     @staticmethod
     def _parse_output_flag(output):
@@ -157,8 +174,7 @@ class NmapScanner:
         else:
             raise InvalidArgumentError('Invalid type for ports. Expecting str, Iterable or specific function calling, but got: {}'.format(type(ports)))
 
-    @staticmethod
-    def _parse_targets(targets):
+    def _parse_targets(self, targets):
         """ Parses the targets from the scan() method
         
         :returns: Parsed targets
@@ -167,13 +183,13 @@ class NmapScanner:
         if isinstance(targets, str):
             if ' nmapthon ' in targets:
                 raise NmapScanError('You dare to scan me?')
-            _ = shlex.split(targets)
+            _ = self._split_command(targets)
             return targets
         elif isinstance(targets, Iterable):
             if 'nmapthon' in targets:
                 raise NmapScanError('You dare to scan me?')
             targets_str = ' '.join(targets)
-            _ = shlex.split(targets_str)
+            _ = self._split_command(targets_str)
             return targets_str
         else:
             raise InvalidArgumentError('Invalid targets type, expected str or Iterable, but got {}'.format(type(targets)))
@@ -189,24 +205,78 @@ class NmapScanner:
             except FileNotFoundError:
                 pass
 
-    def _execute_nmap(self, nmap_arguments, output: Union[None,bool] = None, engine: Union[None,NSE] = None, skip_processing: bool = False) -> NmapScanResult:
-        """ Execute nmap and any post-processing with the given command line arguments
-        
+    def _execute_nmap(self, nmap_arguments) -> Tuple[bytes,bytes]:
+        """ Execute nmap and return the STDOUT and STDERR from the child process created
+
         :param nmap_arguments: List of Nmap arguments
-        :param output: Single value or list of values representing what output types should be stored.
-        :param engine: NSE object to execute after the scan
-        :param skip_processing: Set to true, it does not try to process Nmap output. Should be used when resumming.
+        :raises NmapScanError: If the provided Nmap binary path is not valid.
         """
 
         # Popen raises FileNotFoundError in case the program does not exist
         try:
             nmap_process = subprocess.Popen(nmap_arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except FileNotFoundError:
-            raise NmapScanError('Nmap was not found on the system. Please install it before using Nmapthon2')
+            raise NmapScanError('Nmap was not found on the system. Please install it before using Nmapthon2') from None
 
-        exec_output, exec_error = nmap_process.communicate()
+        return nmap_process.communicate()
 
-        # Parse output if any
+    def _create_nmap_command(self, targets, random_nmap_base_filename, ports, arguments, output) -> list:
+        """ Execute an Nmap scan based on on a series of targets, and optional ports and
+        arguments. For multi-output format storage the output argument can be set with 
+        the needed extersions or output parameters.
+
+        :param targets: List of targets in an Iterable or str.
+        :param random_nmap_base_filename: Random Nmap filename to create output files
+        :param ports: Ports in str or list format
+        :param arguments: Arguments to execute within the scan.
+        :param output: Tuple or list of output formats.
+        """
+
+        # Validate, parse parameters and add them to the command
+        
+        # Target parsing
+        targets = self._parse_targets(targets)
+
+        # Add the commands
+        if self._nmap_bin:
+            nmap_command = self._nmap_bin
+        else:
+            nmap_command = 'nmap '
+
+        # Ports
+        if ports:
+            ports = self._parse_ports_flag(ports)
+            if '--top-ports' in ports:
+                nmap_command += '{} '.format(ports)
+            else:
+                nmap_command += '-p{} '.format(ports)
+        
+        # Arguments
+        if arguments:
+            arguments = self._parse_command_line_arguments(arguments)
+            nmap_command += '{} '.format(arguments)
+        
+        # Depending on the output argument, should add '-oX -' or start handling output through temp files.
+        if output:
+            output = self._parse_output_flag(output)
+            nmap_command += '-oA {} '.format(os.path.join(self._temp_folder, random_nmap_base_filename))
+        else:
+            nmap_command += '-oX - '
+
+        nmap_command += targets
+
+        return self._split_command(nmap_command)
+
+    def _parse_nmap_output(self, exec_output, exec_error, output: Union[None,str] = None, engine: Union[None,NSE] = None, skip_processing: bool = False) -> NmapScanResult:
+        """ Parses the Nmap output comming from its execution through the child process, performs any required validations 
+        and cleans the filesystem in case any files were created.
+
+        :param exec_output: Child process' STDOUT
+        :param exec_error: Child process' STDERR
+        :param output: Single value representing the random filename assigned to the created files by the output flag
+        :param engine: NSE object to execute after the scan
+        :param skip_processing: Set to true, it does not try to process Nmap output. Should be used when resumming.
+        """
         if len(exec_output):
             
             # If no output was set, parse directly from output
@@ -227,7 +297,7 @@ class NmapScanner:
                     raise NmapScanError(exec_error.decode('utf8'))
                 
                 outputs = { 'xml': None, 'normal': None, 'grep': None }
-                for i in output:
+                for i in outputs:
                     with open(os.path.join(self._temp_folder, '{}{}'.format(output, OUTPUT_RELATION[i]))) as f:
                         outputs[i] = f.read()
                 
@@ -271,64 +341,12 @@ class NmapScanner:
         else:
             if not skip_processing:
                 raise NmapScanError(exec_error.decode('utf8'))
-
-
-    def _inner_scan(self, targets, random_nmap_base_filename, dry_run=False, ports=None, arguments=None, output=None, engine=None) -> NmapScanResult:
-        """ Execute an Nmap scan based on on a series of targets, and optional ports and
-        arguments. For multi-output format storage the output argument can be set with 
-        the needed extersions or output parameters.
-
-        :param targets: List of targets in an Iterable or str.
-        :param random_nmap_base_filename: Random Nmap filename to create output files
-        :param ports: Ports in str or list format
-        :param arguments: Arguments to execute within the scan.
-        :param output: Tuple or list of output formats.
-        :param engine: NSEEngine object for custom script execution
-        """
-
-        # Validate, parse parameters and add them to the command
-        
-        # Target parsing
-        targets = self._parse_targets(targets)
-
-        # Add the commands
-        if self._nmap_bin:
-            nmap_command = self._nmap_bin
-        else:
-            nmap_command = 'nmap '
-
-        # Ports
-        if ports:
-            ports = self._parse_ports_flag(ports)
-            if '--top-ports' in ports:
-                nmap_command += '{} '.format(ports)
-            else:
-                nmap_command += '-p{} '.format(ports)
-        
-        # Arguments
-        if arguments:
-            arguments = self._parse_command_line_arguments(arguments)
-            nmap_command += '{} '.format(arguments)
-        
-        # Depending on the output argument, should add '-oX -' or start handling output through temp files.
-        if output:
-            output = self._parse_output_flag(output)
-            nmap_command += '-oA {} '.format(os.path.join(self._temp_folder, random_nmap_base_filename))
-        else:
-            nmap_command += '-oX - '
-
-        nmap_command += targets
-
-        if dry_run:
-            return None
-
-        return self._execute_nmap(shlex.split(nmap_command), output=output, engine=engine)
     
     def scan(self, targets: Union[str,Iterable], ports: Union[None,int,str,Iterable,_PortAbstraction] = None,  arguments: Union[None,str] = None, 
              dry_run: bool = False, output: Union[None,str,Iterable] = None, engine: Union[None,NSE] = None) -> NmapScanResult:
         """ Execute an Nmap scan based on on a series of targets, and optional ports and
         arguments. For multi-output format storage the output argument can be set with 
-        the needed extersions or output parameters.
+        the needed extersions or output parameters. It also accepts an NSE engine that will override the instance`s engine, in case there is one.
 
         :param targets: Targets to scan inside a str or Iterable type, like a list. Targets can also be specified through network ranges, partial ranges, network with CIDR mask and domains/hostnames.
         :param ports: Ports to scan in as an int, str, iterable or custom functions. Ports can also be specified with ranges.
@@ -339,12 +357,19 @@ class NmapScanner:
         """
 
         random_nmap_output_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
+        nmap_command = self._create_nmap_command(targets, random_nmap_output_filename, ports, arguments, output)
+
+        # If dry_run, do not execute
+        if dry_run:
+            return None
 
         try:
-            return self._inner_scan(targets, random_nmap_output_filename, dry_run=dry_run, ports=ports, arguments=arguments, output=output, engine=engine)
+            output_buff, error_buff = self._execute_nmap(nmap_command)
+            return self._parse_nmap_output(output_buff, error_buff, output=random_nmap_output_filename, engine=engine)
         finally:
             if output:
                 self._delete_output_files(random_nmap_output_filename)
+        
 
     def raw(self, raw_arguments: str, engine: Union[None,NSE] = None) -> NmapScanResult:
         """ Executes a Nmap scan with a raw string containing all the command itself, without the 'nmap' keyword.
@@ -366,7 +391,8 @@ class NmapScanner:
         
         raw_arguments = '{} {} -oX -'.format(nmap_bin, raw_arguments)
         
-        return self._execute_nmap(shlex.split(raw_arguments), engine=engine)
+        output_buff, error_buff = self._execute_nmap(self._split_command(raw_arguments))
+        return self._parse_nmap_output(output_buff, error_buff, engine=engine)
 
     def resume(self, xml_file: Union[pathlib.Path,str]) -> NmapScanResult:
         """ Resumes an Nmap scan from an XML file.
@@ -382,10 +408,13 @@ class NmapScanner:
         else:
             nmap_bin = 'nmap'
 
-        self._execute_nmap(shlex.split('{} --resume {}'.format(nmap_bin, xml_file)), skip_processing=True)
+        _, error_buff = self._execute_nmap(self._split_command('{} --resume {}'.format(nmap_bin, xml_file)))
 
-        # If code reaches this point, no error have occured
-        return self._xml_parser.parse_file(xml_file)
+        # Resume should not be checked through output_buff, since a --resume command may not any output at all.
+        if not error_buff:
+            return self._xml_parser.parse_file(xml_file)
+        else:
+            raise NmapScanError(error_buff.decode('utf8'))
 
     def from_file(self, xml_file: Union[pathlib.Path,str]) -> NmapScanResult:
         """ Imports an existing XML file and returns a scan result

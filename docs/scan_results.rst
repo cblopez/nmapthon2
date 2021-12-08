@@ -12,6 +12,7 @@ Retrieving results
     result_os
     result_traceroute
     result_scripts
+    result_output
 
 Successfully completing scans, resuming scans or importing XML files will return an ``NmapScanResult`` object. This object contains all the information from the 
 performed scan. Scan information includes:

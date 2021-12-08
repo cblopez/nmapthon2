@@ -17,3 +17,6 @@ Welcome to Nmapthon2's documentation!
    launch_scan
    scan_results
    nse
+   async
+   utils
+   errors

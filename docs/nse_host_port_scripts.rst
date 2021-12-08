@@ -26,7 +26,7 @@ you will not learn how to register any function into the ``NSE``, but the requir
 
         return None
 
-* NSE scripts that fail their execution do not appear in scan results. If you want to emulate this behaviour, your function shoud raise a ``StopExecution`` error.
+* NSE scripts that fail their execution do not appear in scan results. If you want to simulate this behaviour, your function shoud raise a ``StopExecution`` error.
 
 .. code-block:: python
 
