@@ -32,7 +32,7 @@ This library is **cross-platform**.
 
 ### Documentation
 
-Full documentation inside ReadTheDocs, over [here](https://readthedocs.com).
+Full documentation inside ReadTheDocs, over [here](https://nmapthon2.readthedocs.io/en/latest/).
 
 ### Disclaimer
 
