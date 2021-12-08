@@ -22,4 +22,4 @@ performed scan. Scan information includes:
 * Nmap's NSE scripts results
 * NSE script results from an ``NSE`` object from the Nmapthon2 library.
 
-On the following sub-section, you will learn how to get this information through several properties, methods and control flows.
+On the following sub-section, you will learn how to get this information through several properties, methods and loops.

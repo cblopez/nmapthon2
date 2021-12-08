@@ -22,4 +22,4 @@ The module requires an updated version of `Nmap <https://nmap.org/>`_ installed 
 
 .. warning::
 
-    Python 2 is not supported.
+    Python 3.5+ is required.

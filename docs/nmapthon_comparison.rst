@@ -5,7 +5,7 @@ There are several enhancements and reasons why this library has been released as
 keep evolving the already existing library. Here are some of those reasons that you will quicly identify once you 
 start using this new version:
 
-* **Usability**: As opposed with the previous version, Nmapthon2 comes with several built-in facilities that will help to retrieve, iterate and interact with scan results in a more Pythonic way.
+* **Usability**: As opposed to the previous version, Nmapthon2 comes with several built-in facilities that will help to retrieve, iterate and interact with scan results in a more Pythonic way.
 * **Simplicity**: Some functionalities, like merging, have been deleted, which where nice to have but really unnecesary.
 * **More Nmap parsing**: This new version parses a lot more information from the Nmap scan output compared with the original library, with a much cleaner code.
 * **Better design**: From the usability perspective, you should only need to instantiate one single "Nmap scanner" and reuse it any number of times you would like. The original library would make you alter the scanner object properties or instantiate a new scanner, which is fine, but not optimal.

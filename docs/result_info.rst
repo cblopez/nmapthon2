@@ -49,7 +49,7 @@ Example
     print(result.debug)
     # Prints 0
     print(result.tolerant_errors)
-    # Prints None, but would print a string if there where any.    
+    # Prints None, but would print a string if there were any.    
 
     
 

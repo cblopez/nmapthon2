@@ -6,9 +6,9 @@ but what happens if you only want two of those? Nmapthon2 allows to specify whic
 ``output=`` parameter. Such parameter can have multiple possible values:
 
 * A single output format between ``'all'``, ``'normal'``, ``'xml'`` or ``'grep'``.
-* An iterable object with any of the previously mentioned values, besides ``'all'``. (Because, if you want all of them, just type ``'all'`` u fool).
+* An iterable object with any of the previously mentioned values, besides ``'all'``. (Because, if you want all of them, just type ``'all'``).
 
-Please head to the <get_output> section to see how to retrieve the different output formats once you get the result from executing the ``scan()`` method.
+Please head to the :doc:`result_output` section to see how to retrieve the different output formats once you get the result from executing the ``scan()`` method.
 
 .. warning:: 
 

@@ -3,8 +3,8 @@ Creating a Scanner
 
 With Nmapthon2, you only need to create a single ``NmapScanner`` object and use it any number of times. This object can recieve two optional ``kwargs`` parameters:  
 
-* ``engine: Union[None,NSE] = None``: Specify an ``NSE`` instance to be used as generic engine for any scan made with the instantiated scanner. Please head to <put section> to learn more about the ``NSE``.
-* ``nmap_bin: Union[None,str] = None``: Set the Nmap tool path, including the mame. For example, ``"/tmp/nmap"`` would be a valid path. The default ``None`` value means that it will be taken from the system's $PATH.
+* ``engine: Union[None,NSE] = None``: Specify an ``NSE`` instance to be used as generic engine for any scan made with the instantiated scanner. Please head to  :doc:`nse` to learn more about the ``NSE``.
+* ``nmap_bin: Union[None,str] = None``: Set the Nmap binary path, including the name. For example, ``"/tmp/nmap"`` would be a valid path. The default ``None`` value means that it will be taken from the system's $PATH.
 
 Example
 +++++++

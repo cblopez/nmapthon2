@@ -36,7 +36,7 @@ Example
     # Scan port 22/tcp and from 50/tcp to 100/tcp
     result = scanner.scan('localhost', ports=[22, '50-100'])
 
-    # Scan registered tcp ports
+    # Scan registered tcp ports, but now with a function
     result = scanner.scan('localhost', ports=tcp('1-1024'))
 
      # Scan registered UDP ports. Remember to use -sU
