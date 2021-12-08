@@ -15,16 +15,16 @@ Example
     scanner = nm2.NmapScanner()
 
     # Good
-    result = scanner.raw('-sS -T4 -n google.com scanme.nmap.org 192.168.0.0/24', engine=nm2.engine.NSE())
+    result = scanner.raw('-sS -T4 -n google.com scanme.nmap.org 192.168.0.0/24', engine=nm2.NSE())
 
     # Good but shoud delete "nmap"
-    result = scanner.raw('nmap -sS -T4 -n google.com scanme.nmap.org 192.168.0.0/24', engine=nm2.engine.NSE())
+    result = scanner.raw('nmap -sS -T4 -n google.com scanme.nmap.org 192.168.0.0/24', engine=nm2.NSE())
 
     # Bad, no output options are allowed
-    result = scanner.raw('-sS -T4 -n -oX /tmp/output.xml google.com scanme.nmap.org 192.168.0.0/24', engine=nm2.engine.NSE())
+    result = scanner.raw('-sS -T4 -n -oX /tmp/output.xml google.com scanme.nmap.org 192.168.0.0/24', engine=nm2.NSE())
 
     # Bad, use the .resume() method
-    result = scanner.raw('--resume /tmp/output.xml', engine=nm2.engine.NSE())
+    result = scanner.raw('--resume /tmp/output.xml', engine=nm2.NSE())
 
 
 Related documentation

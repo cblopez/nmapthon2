@@ -178,7 +178,9 @@ class _PortAbstraction:
             nmap_port_string = ''
             if self._tcp_ports:
                 nmap_port_string += 'T:{}'.format(self._tcp_ports)
-            if self._udp_ports:
+            if self._udp_ports and self._tcp_ports:
+                nmap_port_string += ',U:{}'.format(self._udp_ports)
+            elif self._udp_ports:
                 nmap_port_string += 'U:{}'.format(self._udp_ports)
             
             return nmap_port_string

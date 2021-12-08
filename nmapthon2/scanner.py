@@ -34,6 +34,7 @@ import os
 
 from collections.abc import Iterable
 from typing import Coroutine, Tuple, Union
+import nmapthon2
 
 from nmapthon2.results import NmapScanResult
 
@@ -356,7 +357,11 @@ class NmapScanner:
         :param engine: NSE object for custom script execution. It overrides the NSE object specified on the instance for the current scan.
         """
 
-        random_nmap_output_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
+        if output:
+            random_nmap_output_filename = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(25))
+        else:
+            random_nmap_output_filename = None
+
         nmap_command = self._create_nmap_command(targets, random_nmap_output_filename, ports, arguments, output)
 
         # If dry_run, do not execute
