@@ -5,7 +5,7 @@ with open('README.md') as f:
         name='nmapthon2',
         version='0.1.02',
         packages=['nmapthon2'],
-        url='https://github.com/cblopez/nmapthon',
+        url='https://github.com/cblopez/nmapthon2',
         license='Apache-2.0',
         author='cblopez',
         author_email='cbarrallopez@gmail.com',
