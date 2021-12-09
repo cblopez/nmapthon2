@@ -285,7 +285,10 @@ class NmapScanner:
                 try:
                     result = self._xml_parser.parse_plain(exec_output)
                 except XMLParsingError as e:
-                    raise NmapScanError(exec_error.decode('utf8'))
+                    if isinstance(exec_error, bytes):
+                        raise NmapScanError(exec_error.decode('utf8'))
+                    else:
+                        raise NmapScanError(exec_error)
             
                 if skip_processing:
                     return None
@@ -295,7 +298,10 @@ class NmapScanner:
                 try:
                     result = self._xml_parser.parse_file(os.path.join(self._temp_folder, '{}.xml'.format(output)))
                 except XMLParsingError:
-                    raise NmapScanError(exec_error.decode('utf8'))
+                    if isinstance(exec_error, bytes):
+                        raise NmapScanError(exec_error.decode('utf8'))
+                    else:
+                        raise NmapScanError(exec_error)
                 
                 outputs = { 'xml': None, 'normal': None, 'grep': None }
                 for i in outputs:
@@ -341,7 +347,10 @@ class NmapScanner:
         
         else:
             if not skip_processing:
-                raise NmapScanError(exec_error.decode('utf8'))
+                if isinstance(exec_error, bytes):
+                    raise NmapScanError(exec_error.decode('utf8'))
+                else:
+                    raise NmapScanError(exec_error)
     
     def scan(self, targets: Union[str,Iterable], ports: Union[None,int,str,Iterable,_PortAbstraction] = None,  arguments: Union[None,str] = None, 
              dry_run: bool = False, output: Union[None,str,Iterable] = None, engine: Union[None,NSE] = None) -> NmapScanResult:
@@ -419,7 +428,10 @@ class NmapScanner:
         if not error_buff:
             return self._xml_parser.parse_file(xml_file)
         else:
-            raise NmapScanError(error_buff.decode('utf8'))
+            if isinstance(error_buff, bytes):
+                raise NmapScanError(error_buff.decode('utf8'))
+            else:
+                raise NmapScanError(error_buff)
 
     def from_file(self, xml_file: Union[pathlib.Path,str]) -> NmapScanResult:
         """ Imports an existing XML file and returns a scan result

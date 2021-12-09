@@ -81,10 +81,17 @@ class NmapAsyncScanner(NmapScanner):
         :param command: Command to extend
         :param interval: Stats every interval
         """
-        nmap_command_length = 4 if not self._nmap_bin else len(self._nmap_bin)
 
-        return fr'{command[:nmap_command_length]} --stats-every {interval}{command[nmap_command_length:]}'
-
+        # If str, insert in between
+        if isinstance(command, str):
+            nmap_command_length = 4 if not self._nmap_bin else len(self._nmap_bin)
+            return fr'{command[:nmap_command_length]} --stats-every {interval}{command[nmap_command_length:]}'
+        
+        # If list, just insert it after the nmap executable
+        else:
+            command.insert(1, '--stats-every')
+            command.insert(2, interval)
+            return command
 
     def _execute_nmap(self, nmap_arguments) -> Tuple[bytes,bytes]:
         """ Execute and asynchronous Nmap process
@@ -236,7 +243,10 @@ class NmapAsyncScanner(NmapScanner):
                     with open(self._xml_file_path) as f:
                         return self._parse_nmap_output(output_buff, err_buff, output=self._output_base_filename, engine=self._priority_engine)
                 else:
-                    raise NmapScanError(err_buff.decode('utf8'))
+                    if isinstance(err_buff, bytes):
+                        raise NmapScanError(err_buff.decode('utf8'))
+                    else:
+                        raise NmapScanError(err_buff)
             else:
                 return self._parse_nmap_output(output_buff, err_buff, output=self._output_base_filename, engine=self._priority_engine)
         finally:
