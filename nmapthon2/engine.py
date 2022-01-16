@@ -386,7 +386,7 @@ class NSE(metaclass=NSEMeta):
         """
 
         def decorator(f):
-            self.add_parser(name, f)
+            self.add_parser(f, name)
             return f
         
         return decorator

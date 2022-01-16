@@ -331,7 +331,8 @@ class NmapScanner:
                         if len(engine._parsers) and service:
                             for script_name, callback in engine._parsers.items():
                                 try:
-                                    service._scripts[script_name] = callback(service._scripts[script_name])
+                                    result = callback(service._scripts[script_name])
+                                    service._scripts[script_name] = result
                                 except KeyError as e:
                                     # If the KeyError is because of the script key not being in _scripts, then thats ok
                                     # but if not, should raise the exception to let know the programmer.
