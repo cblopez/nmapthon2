@@ -3,7 +3,7 @@ from setuptools import setup
 with open('README.md') as f:
     setup(
         name='nmapthon2',
-        version='0.1.02',
+        version='0.1.3',
         packages=['nmapthon2'],
         url='https://github.com/cblopez/nmapthon',
         license='GLPv3',
