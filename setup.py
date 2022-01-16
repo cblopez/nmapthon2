@@ -5,8 +5,8 @@ with open('README.md') as f:
         name='nmapthon2',
         version='0.1.3',
         packages=['nmapthon2'],
-        url='https://github.com/cblopez/nmapthon',
-        license='GLPv3',
+        url='https://github.com/cblopez/nmapthon2',
+        license='Apache-2.0',
         author='cblopez',
         author_email='cbarrallopez@gmail.com',
         description='The evolution of nmapthon, an Nmap automation library for humans.',
@@ -16,7 +16,8 @@ with open('README.md') as f:
             'Development Status :: 4 - Beta',
             'Programming Language :: Python :: 3 :: Only',
             'Topic :: System :: Networking',
-            'Topic :: Software Development :: Libraries :: Python Modules'
+            'Topic :: Software Development :: Libraries :: Python Modules',
+            'License :: OSI Approved :: Apache Software License',
         ],
         keywords=['python', 'python3', 'nmap', 'module', 'scan', 'nse', 'port', 'service', 'async', 'network']
     )
