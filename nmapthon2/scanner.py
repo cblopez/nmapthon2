@@ -329,7 +329,6 @@ class NmapScanner:
                         # If any parser to be used and there is a service with optential scripts, rock'em
                         if len(engine._parsers) and port.service:
                             for script_name, callback in engine._parsers.items():
-                                print(callback(port.service._scripts[script_name]))
                                 try:
                                     port.service._scripts[script_name] = callback(port.service._scripts[script_name])
                                 except KeyError as e:
