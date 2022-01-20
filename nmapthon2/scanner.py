@@ -326,13 +326,12 @@ class NmapScanner:
                     # Apply any host script to the host object by reference
                     engine._apply_host_scripts(host)
                     for port in host:
-                        service = port.get_service()
                         # If any parser to be used and there is a service with optential scripts, rock'em
-                        if len(engine._parsers) and service:
+                        if len(engine._parsers) and port.service:
                             for script_name, callback in engine._parsers.items():
+                                print(callback(port.service._scripts[script_name]))
                                 try:
-                                    result = callback(service._scripts[script_name])
-                                    service._scripts[script_name] = result
+                                    port.service._scripts[script_name] = callback(port.service._scripts[script_name])
                                 except KeyError as e:
                                     # If the KeyError is because of the script key not being in _scripts, then thats ok
                                     # but if not, should raise the exception to let know the programmer.
@@ -342,7 +341,7 @@ class NmapScanner:
                                         raise
                         
                         # If any port script, apply it
-                        engine._apply_port_scripts(host, port, service)
+                        engine._apply_port_scripts(host, port, port.service)
 
             return result
         
