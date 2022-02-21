@@ -32,7 +32,8 @@ from typing import Union
 
 from .elements import Host, Port, Service, OperatingSystem, Hop
 from .results import NmapScanResult
-from .exceptions import XMLParsingError
+from .exceptions import InvalidDTDValidationError, XMLParsingError
+from .security import validation
 
 
 class XMLParser:
@@ -83,6 +84,9 @@ class XMLParser:
         :param text: Text to parse.
         :returns: Scan result
         """
+
+        if not validation.validate_nmap_dtd(text):
+            raise InvalidDTDValidationError('Could not parse Nmap, output does not match DTD')
 
         try:
             self._xml_tree = ET.fromstring(text)

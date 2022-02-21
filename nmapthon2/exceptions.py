@@ -21,7 +21,7 @@
 # SOFTWARE.
 
 __all__ = ['NmapScanError', 'InvalidPortError', 'InvalidArgumentError', 'MalformedIpAddressError',
-           'EngineError', 'XMLParsingError']
+           'EngineError', 'XMLParsingError', 'InvalidDTDValidationError']
 
 
 class NmapScanError(Exception):
@@ -63,6 +63,15 @@ class XMLParsingError(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
 
+
+class InvalidDTDValidationError(XMLParsingError):
+    """ Exception class for when the XML string does not match the DTD
+    """
+
+    def __init__(self, message):
+        Exception.__init__(self, message)
+
+
 class MissingScript(Exception):
     """ Exception to be raised when a script is missing
     """
@@ -77,6 +86,7 @@ class EngineError(Exception):
 
     def __init__(self, msg):
         super().__init__(msg)
+
 
 class StopExecution(Exception):
     """ Exception for knowing when to not add script output
