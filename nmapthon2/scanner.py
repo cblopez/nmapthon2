@@ -439,3 +439,11 @@ class NmapScanner:
         """
 
         return self._xml_parser.parse_file(xml_file)
+
+    def from_str(self, plain_output: str) -> NmapScanResult:
+        """ Directly parse a string containing the Nmap output
+        
+        :param plain_output: String containing the Nmap output
+        """
+
+        return self._xml_parser.parse_plain(plain_output)

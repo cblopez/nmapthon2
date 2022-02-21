@@ -9,7 +9,7 @@ with open('README.md') as f:
         license='Apache-2.0',
         author='cblopez',
         author_email='cbarrallopez@gmail.com',
-        description='The evolution of nmapthon, an Nmap automation library for humans.',
+        description='A modern Nmap automation library for Python.',
         long_description=f.read(),
         long_description_content_type='text/markdown',
         classifiers=[
