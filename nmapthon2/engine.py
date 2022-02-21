@@ -365,6 +365,39 @@ class NSE(metaclass=NSEMeta):
 
         return decorator
 
+    def delete_host_script(self, name: str, silent: bool = True):
+        """ Delete an existing host script. If silent, it won't rise an error when the script does not exist.
+
+        :param silent: If False, it will raise KeyError if the script does not exist.
+        """
+        try:
+            del self._host_scripts[name]
+        except KeyError:
+            if not silent:
+                raise
+
+    def delete_port_script(self, name: str, silent: bool = True):
+        """ Delete an existing port script. If silent, it won't rise an error when the script does not exist.
+
+        :param silent: If False, it will raise KeyError if the script does not exist.
+        """
+        try:
+            del self._port_scripts[name]
+        except KeyError:
+            if not silent:
+                raise
+
+    def delete_parser(self, name: str, silent: bool = True):
+        """ Delete an existing parser. If silent, it won't rise an error when the script does not exist.
+
+        :param silent: If False, it will raise KeyError if the script does not exist.
+        """
+        try:
+            del self._parsers[name]
+        except KeyError:
+            if not silent:
+                raise
+
     @staticmethod
     def global_parser(f):
         """ A decorator to register the given function as a NSE global parser
