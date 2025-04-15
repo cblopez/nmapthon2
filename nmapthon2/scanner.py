@@ -432,13 +432,13 @@ class NmapScanner:
             else:
                 raise NmapScanError(error_buff)
 
-    def from_file(self, xml_file: Union[pathlib.Path,str], **kwargs) -> NmapScanResult:
+    def from_file(self, xml_file: Union[pathlib.Path,str], encoding='utf-8') -> NmapScanResult:
         """ Imports an existing XML file and returns a scan result
         
         :param xml_file: String representing the file's path
         """
 
-        return self._xml_parser.parse_file(xml_file, **kwargs)
+        return self._xml_parser.parse_file(xml_file, encoding=encoding)
 
     def from_str(self, plain_output: str) -> NmapScanResult:
         """ Directly parse a string containing the Nmap output
