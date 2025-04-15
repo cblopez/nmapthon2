@@ -56,17 +56,18 @@ class XMLParser:
     def xml_tree(self):
         return self._xml_tree
 
-    def parse_file(self, file_path: Union[pathlib.Path,str]):
+    def parse_file(self, file_path: Union[pathlib.Path,str], encoding='utf-8'):
         """ Parse a XML file in the system.
 
         :param file_path: Path from the file as a String or a Path object.
+        :param encoding: Encoding to use when opening the file.
         :raises FileNotFoundError: If file is not found and as_boolean is False.
         :returns: Parsed file as NmapScanResult.
         """
 
         if isinstance(file_path, pathlib.Path):
             file_path = file_path.absolute
-        with open(file_path) as f:
+        with open(file_path, encoding=encoding) as f:
             return self._parse(f.read())
 
     def parse_plain(self, plain_text: str):
